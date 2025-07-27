@@ -28,10 +28,10 @@ class Exchange:
     ping_interval: Any = field(default = None)
     available_kline_intervals: list[str] = field(default = None)
     topic_template: str = field(default = None)
-    api_key: str = field(default = None)
-    api_secret: str = field(default = None)
+    api_key: str = field(default = None, repr = False)
+    api_secret: str = field(default = None, repr = False)
     public_socket_url: str = field(default = None)
-    private_socket_url: str = field(default = None)
+    private_socket_url: str = field(default = None, repr = False)
     env_path: Path = field(default=Path(__file__).parent.parent/'config', repr=False)
     def __post_init__(self):
         self.name = self.name.lower()
@@ -47,4 +47,8 @@ class Exchange:
         self.available_kline_intervals = config['available_kline_intervals']
         self.api_key = os.getenv(f"{self.name.upper()}_API_KEY")
         self.api_secret = os.getenv(f"{self.name.upper()}_SECRET")
+    def __repr__(self):
+        safe_fields = {k: "****" if "secret" in k or "key" in k or "private" in k else v 
+                      for k, v in self.__dict__.items()}
+        return f"Exchange({safe_fields})"
 

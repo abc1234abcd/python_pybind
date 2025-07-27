@@ -29,7 +29,7 @@ class MarketDataStreamer:
                     await self.subscribe()
                     await asyncio.gather(
                         self._connection_manager(),
-                        self.message_decoder_cplus_two()
+                        self.message_decoder_cplus()
                         )
             except Exception as e:
                 logging.error(f"{self.exchange.name} connect failed: {e}. Reconnecting immediately...")

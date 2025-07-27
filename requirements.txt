@@ -1,3 +1,7 @@
-## !! Could not determine repository location
--e /Users/bingxu/Documents/vs/bot
+asyncio==3.4.3
+-e git+https://github.com/abc1234abcd/bot.git@6010358a0f4579e7eebdca2e7f6cf4b1b068a61a#egg=bot
+protobuf==6.31.1
 pybind11==3.0.0
+requests==2.32.4
+setuptools==80.9.0
+websockets==15.0.1
