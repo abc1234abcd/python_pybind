@@ -48,7 +48,11 @@ class Exchange:
         self.api_key = os.getenv(f"{self.name.upper()}_API_KEY")
         self.api_secret = os.getenv(f"{self.name.upper()}_SECRET")
     def __repr__(self):
-        safe_fields = {k: "****" if "secret" in k or "key" in k or "private" in k else v 
-                      for k, v in self.__dict__.items()}
-        return f"Exchange({safe_fields})"
+        sensitive_keys = {'api_key', 'api_secret', 'private_socket_url'} 
+        safe_fields = {
+            k: '****' if k in sensitive_keys else v
+            for k, v in self.__dict__.items()
+            if not k.startswith('_') 
+        }
+        return f"{self.__class__.__name__}({safe_fields})"
 
