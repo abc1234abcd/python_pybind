@@ -1,0 +1,97 @@
+# --- macOS Hidden Files ---
+.DS_Store
+._*
+
+# --- Python Bytecode and Cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+
+# --- Virtual Environments ---
+venv/
+.venv/
+env/
+ENV/
+pyvenv.cfg
+pythonenv/
+
+# --- Config----
+config/
+config/.env
+
+# --- Build and Distribution ---
+lib/
+build/
+dist/
+*.egg-info/
+*.egg
+*.whl
+pip-wheel-metadata/
+
+# --- Testing and Coverage ---
+.coverage
+htmlcov/
+.pytest_cache/
+.nox/
+.tox/
+
+# --- IDE & Editor Files ---
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm/IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# --- Logs and Databases ---
+*.log
+*.sqlite
+*.db
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints/
+
+# --- CPython-Specific (if working on Python's core) ---
+# Object files, autoconf artifacts
+*.o
+*.a
+*.lo
+*.la
+*.al
+*.lai
+*.dylib
+
+# Generated files
+Grammar/Python.asdl
+Grammar/Python.asdl.h
+Include/Python-ast.h
+Python/Python-ast.c
+
+# Build directories
+Makefile
+config.cache
+config.log
+config.status
+libpython3.*.a
+python*-config
+pybuilddir.txt
+
+# Windows-specific
+*.exe
+*.manifest
+*.spec
+*.lib

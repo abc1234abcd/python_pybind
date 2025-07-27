@@ -1,0 +1,3 @@
+[submodule "mexc_protobuf"]
+	path = mexc_protobuf
+	url = https://github.com/mexcdevelop/websocket-proto.git

@@ -1,0 +1,3 @@
+## !! Could not determine repository location
+-e /Users/bingxu/Documents/vs/bot
+pybind11==3.0.0
