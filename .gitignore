@@ -11,15 +11,15 @@ __pycache__/
 
 # --- Virtual Environments ---
 venv/
-.venv/
+.venv
 env/
 ENV/
 pyvenv.cfg
 pythonenv/
+.env
 
-# --- Config----
-config/
-config/.env
+# --- Secrets----
+
 
 # --- Build and Distribution ---
 lib/

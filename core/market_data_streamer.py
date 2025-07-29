@@ -1,19 +1,17 @@
 import asyncio
 import json 
-import orjson
 import logging 
 import time
 from queue import Queue
 from websockets import connect 
 from utils.data_class import Exchange
-from typing import List
+from typing import List, Any
 from mexc_protobuf import PushDataV3ApiWrapper_pb2
-
 #pybind11
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 
 class MarketDataStreamer:
-    def __init__(self, exchange: str, queue: Queue, topics: List[dict]):
+    def __init__(self, exchange: str, queue: Queue, topics: List[Any]):
         self.exchange = Exchange(exchange.lower())
         self.queue = queue
         self.topics = topics
@@ -70,8 +68,6 @@ class MarketDataStreamer:
                         #no copy processing: no need of this if msg tiny
                         with memoryview(msg) as mv:
                             msg_len = int.from_bytes(mv[:4], 'big')
-                            msg_type = mv[4]
-                            payload = mv[5:5+msg_len]
                             # python parser
                             result.ParseFromString(msg)
                             print(result)
@@ -115,6 +111,7 @@ class MarketDataStreamer:
                 logging.error(f"{self.exchange.name} websocket closing on exception: {e}.")
             finally:
                 self.ws = None
+        #no redis yet
         if hasattr(self.redis) and self.redis:
             try:
                 self.redis.close()

@@ -1,0 +1,20 @@
+exchanges:
+  mexc:
+    public_socket_url: "wss://wbs-api.mexc.com/ws"
+    private_socket_url: "wss://wbs-api.mexc.com/ws?listenKey=@${listenKey}" 
+    max_subscription: 30
+    ping_interval: 60
+    max_listenKey: 60
+    each_listenKey_perMaxWebsocketConnection: 5
+    ping_message: {"method": "PING"}
+    available_kline_intervals: ['Min1', 'Min5','Min15', 'Min30', 'Min60', 'Hour4', 'Hour8', 'Day1', 'Week1', 'Month1']
+    template:
+        public:
+            trades: "spot@public.aggre.deals.v3.api.pb@(100ms|10ms)@${ticker}"
+            order_book: 
+            kline: "spot@public.kline.v3.api.pb@${ticker}@${interval}"
+            book_ticker: "spot@public.aggre.bookTicker.v3.api.pb@(100ms|10ms)@${ticker}"
+        private:
+            spot_account_upate: {"method": "SUBSCRIPTION", "params": "spot@private.account.v3.api.pb"}
+            spot_account_deals: {"method": "SUBSCRIPTION", "params":"spot@private.deals.v3.api.pb"}
+            spot_account_orders: {"method": "SUBSCRIPTION", "params":"spot@private.orders.v3.api.pb"}

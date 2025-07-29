@@ -6,7 +6,7 @@ from typing import Dict, Any
 class ExchangeConfigLoader:
     @staticmethod
     def load_exchange_config(exchange: str) ->Dict[str, Any]:
-        config_path = Path(__file__).parent.parent/'config'/'exchanges.yaml'
+        config_path = Path(__file__).parent/'exchanges.yaml'
         try:
             full_path = Path(config_path).resolve()
             if not full_path.exists():

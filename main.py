@@ -8,9 +8,9 @@ import asyncio
 from core.market_data_streamer import MarketDataStreamer
 
 
-async def main(topics):
+async def main(market_data_topics):
     queue = Queue()
-    mexc_market_data_streamer = MarketDataStreamer(exchange = 'mexc', queue=queue, topics=topics)
+    mexc_market_data_streamer = MarketDataStreamer(exchange = 'mexc', queue=queue, topics=market_data_topics)
     await asyncio.gather(
         mexc_market_data_streamer.connect(),
     )
@@ -25,8 +25,9 @@ if __name__=='__main__':
         datefmt = "%Y-%m-%d %H:%M:%S"
     )
     # generate topics to make subscriptions to all required live data stream.
-    topics= [{"method": "SUBSCRIPTION", "params": ["spot@public.kline.v3.api.pb@BTCUSDT@Min1", "spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT"]}]
-    asyncio.run(main(topics))
+    market_data_topics= [{"method": "SUBSCRIPTION", "params": ["spot@public.kline.v3.api.pb@BTCUSDT@Min1", "spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT"]}]
+    user_data_topics =  [{"method": "SUBSCRIPTION", "params": ["spot@private.account.v3.api.pb", "spot@private.deals.v3.api.pb", "spot@private.orders.v3.api.pb"]}]
+    asyncio.run(main(market_data_topics))
    
 
     

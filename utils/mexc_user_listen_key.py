@@ -6,6 +6,7 @@ import time
 from typing import Dict, Any
 from hashlib import sha256
 
+  
 def mexc_sign_message(api_secret: str, params: Dict[str, Any]) -> Dict[str, Any]:
     totalParams = params.copy()
     if 'timestamp' not in totalParams:
