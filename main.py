@@ -25,7 +25,7 @@ if __name__=='__main__':
         datefmt = "%Y-%m-%d %H:%M:%S"
     )
     # generate topics to make subscriptions to all required live data stream.
-    market_data_topics= [{"method": "SUBSCRIPTION", "params": ["spot@public.kline.v3.api.pb@BTCUSDT@Min1", "spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT"]}]
+    market_data_topics= [{"method": "SUBSCRIPTION", "params": ["spot@public.kline.v3.api.pb@BTCUSDT@Min1", "spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT", "spot@public.aggre.deals.v3.api.pb@100ms@BTCUSDT"]}]
     user_data_topics =  [{"method": "SUBSCRIPTION", "params": ["spot@private.account.v3.api.pb", "spot@private.deals.v3.api.pb", "spot@private.orders.v3.api.pb"]}]
     asyncio.run(main(market_data_topics))
    

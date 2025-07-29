@@ -7,7 +7,6 @@ from websockets import connect
 from utils.data_class import Exchange
 from typing import List, Any
 from mexc_protobuf import PushDataV3ApiWrapper_pb2
-#pybind11
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 
 class MarketDataStreamer:
@@ -65,12 +64,9 @@ class MarketDataStreamer:
                 msg = await self.ws.recv()
                 if isinstance(msg, bytes):
                     try:
-                        #no copy processing: no need of this if msg tiny
-                        with memoryview(msg) as mv:
-                            msg_len = int.from_bytes(mv[:4], 'big')
-                            # python parser
-                            result.ParseFromString(msg)
-                            print(result)
+                        # python parser
+                        result.ParseFromString(msg)
+                        print(f"python parser: {result}.")
                     except Exception as e:
                         logging.error(f"python message decoder error: {e}")
                         raise
@@ -84,22 +80,27 @@ class MarketDataStreamer:
                 msg = await self.ws.recv()                
                 if isinstance(msg, bytes):
                     if msg_protobuf_holder.parse(msg):
-                        print(f"Channel: {msg_protobuf_holder.channel}")
+                        #print(f"Channel: {msg_protobuf_holder.channel}")
                         if msg_protobuf_holder.has_kline():
                             kline = msg_protobuf_holder.kline()
-                            print(f"Kline: {kline.interval} {kline.opening_price}")
+                            print(f"Kline: {kline.interval()} {kline.opening_price()}")
                         elif msg_protobuf_holder.has_book_ticker():
                             book = msg_protobuf_holder.book_ticker()
-                            print(f"BookTicker: {book.bid_price}x{book.bid_quantity}")
+                            print(f"BookTicker: {book.bid_price()}x{book.bid_quantity()}")
+                        elif msg_protobuf_holder.has_public_aggredeals():
+                            trades = msg_protobuf_holder.trades()
+                            print(f"{trades.event_type()}")
+                            for deal in trades.deals():
+                                print(f"trades {deal.time()} {deal.quantity()} {deal.price()}{deal.trade_type()}")
                         else:
-                            logging.error("Message parsed but no recognized data type")
+                            logging.error(f"{msg} parsed but no recognized data type")
                     else:
                         logging.error("Failed to parse protobuf message")
                 else:
                     logging.error(f"Non-bytes message: {msg}")
             except Exception as e:
                 logging.error(f"cplus message decoder error:{e}.")
-                await asyncio.sleep(1)  
+                raise
     async def safe_close(self) -> None:
         self._is_active = False
         if hasattr(self, 'ws') and self.ws:
@@ -111,11 +112,4 @@ class MarketDataStreamer:
                 logging.error(f"{self.exchange.name} websocket closing on exception: {e}.")
             finally:
                 self.ws = None
-        #no redis yet
-        if hasattr(self.redis) and self.redis:
-            try:
-                self.redis.close()
-                await self.redis.wait_closed()
-                logging.info(f"{self.exchange} redis connection closed.")
-            except Exception as e:
-                logging.error(f"error closing redis.")
+ 

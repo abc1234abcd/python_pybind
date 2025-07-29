@@ -9,7 +9,7 @@ from websockets import connect
 from string import Template
 from utils.data_class import Exchange
 from typing import Dict
-from utils.mexc_user_listen_key import mexc_sign_message, mexc_generate_listen_key, put_mexc_listen_key, delete_mexc_listen_key
+from utils.mexc_user_listen_key import mexc_generate_listen_key, put_mexc_listen_key, delete_mexc_listen_key
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 
 class UserDataStreamer:
@@ -50,7 +50,7 @@ class UserDataStreamer:
                     for topic in self.topics:
                         await self.ws.send(json.dumps(topic))
                 except Exception as e:
-                    logging.error(f"{self.exchange.name} subscription failed: {e}.")
+                    logging.error(f"{self.exchange.name} subscription failed on exception: {e}.")
                     raise
         async def _listenKey_extender(self):
             while self.ws and self._is_active:
@@ -89,12 +89,15 @@ class UserDataStreamer:
                     if isinstance(msg, bytes):
                         if msg_protobuf_holder.parse(msg):
                             print(f"Channel: {msg_protobuf_holder.channel}")
-                            if msg_protobuf_holder.has_kline():
-                                kline = msg_protobuf_holder.kline()
-                                print(f"Kline: {kline.interval} {kline.opening_price}")
-                            elif msg_protobuf_holder.has_book_ticker():
-                                book = msg_protobuf_holder.book_ticker()
-                                print(f"BookTicker: {book.bid_price}x{book.bid_quantity}")
+                            if msg_protobuf_holder.has_account_update():
+                                account_update = msg_protobuf_holder.account_update()
+                                print(f"account update:  time: {account_update.time}, balance: {account_update.balance_amount}, balance change: {account_update.balance_amount_change}")
+                            elif msg_protobuf_holder.has_private_deal():
+                                private_deal = msg_protobuf_holder.private_deal()
+                                print(f"private deals: {private_deal}")
+                            elif msg_protobuf_holder.has_private_order():
+                                private_order = msg_protobuf_holder.private_order()
+                                print(f"private order: {private_order}")
                             else:
                                 logging.error("Message parsed but no recognized data type")
                         else:

@@ -62,6 +62,6 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         'pybind11>=2.6.0',
-        'protobuf>=3.15.0',
+        'protobuf>=6.31.1',
     ]
 )
