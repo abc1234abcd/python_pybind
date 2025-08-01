@@ -1,2 +1,2 @@
-# bot
+# python and pybind
 
