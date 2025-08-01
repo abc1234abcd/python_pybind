@@ -3,10 +3,12 @@ import logging
 import hmac
 import urllib.parse
 import time
+import os
 from typing import Dict, Any
 from hashlib import sha256
+from cryptography.fernet import Fernet
+import ctypes
 
-  
 def mexc_sign_message(api_secret: str, params: Dict[str, Any]) -> Dict[str, Any]:
     totalParams = params.copy()
     if 'timestamp' not in totalParams:
@@ -16,7 +18,7 @@ def mexc_sign_message(api_secret: str, params: Dict[str, Any]) -> Dict[str, Any]
         logging.warning(f"{totalParams} is already signed.")
     totalParams['signature'] = hmac.new(api_secret.encode('utf-8'), query_string.encode('utf-8'), sha256).hexdigest()
     return totalParams
-def mexc_generate_listen_key(api_key: str, api_secret: str) -> Dict[str, Any]:
+def mexc_generate_listen_key(api_key: str, api_secret: str) -> str:
     api_base_url = "https://api.mexc.com"
     url_path = "/api/v3/userDataStream"
     headers = {"X-MEXC-APIKEY": api_key}

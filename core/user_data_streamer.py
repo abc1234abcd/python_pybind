@@ -1,42 +1,56 @@
 import asyncio
 import logging
-import os 
 import json
 import time
-from dotenv import load_dotenv
-from queue import Queue
 from websockets import connect
 from string import Template
 from utils.data_class import Exchange
-from typing import Dict
-from utils.mexc_user_listen_key import mexc_generate_listen_key, put_mexc_listen_key, delete_mexc_listen_key
+from typing import Dict, Tuple
+from multiprocessing import Porcess, Queue as MQueue
+from queue import Queue
+from dotenv import dotenv_values
 from proto_wrapper_mexc import PushDataV3ApiWrapper
+from utils.mexc_user_listen_key import mexc_generate_listen_key, delete_mexc_listen_key
+from security import SafeString, SecuirtyManager
 
-class UserDataStreamer:
-    def __init__(self, exchange: str, queue: Queue, topics: Dict[str]):
-        self.exchange = Exchange(exchange.lower())
-        self.topics = topics
-        self.queue = queue
-        self.ws = None
-        self._is_active = False
+def create_user_data_streamer(exchange: str):
+
+    #init encrypted secrets by exchange.
+    api_key_manager = SecuirtyManager(dotenv_values(".env")[exchange.upper()]["API_KEY"])
+    secret_manager = SecuirtyManager(dotenv_values(".env")[exchange.upper()]["SECRET"])
+    #listenKey is exchange specific
+    listenKey_manager = SecuirtyManager(mexc_generate_listen_key(api_key = api_key_manager.get_secret(), api_secret =secret_manager.get_secret()))
+
+    class UserDataStreamer:
+        #memory safe: auto-clear 
+        @property
+        def api_key(self) ->SafeString:
+            return api_key_manager.get_secret()
+        @property
+        def secret(self) -> SafeString:
+            return secret_manager.get_secret()
+        @property
+        def listenKey_credential(self) -> SafeString:
+            return listenKey_manager.get_secret()
         
-        #load secrets
-        load_dotenv()
-        api_key = os.getenv("MEXC_API_KEY")
-        api_secret = os.getenv("MEXC_SECRET")
-        listenKey = mexc_generate_listen_key(api_key, api_secret)
-        listenKey_startTime = time.perf_counter()
+        #Construct UserDateStreamer
+        def __init__(self, queue: Queue, topics: Dict[str]):
+            self.exchange = Exchange(exchange.lower())
+            self.topics = topics
+            self.queue = queue
+            self.ws = None
+            self._is_active = False
 
         async def connect(self):
             self._is_active = True
             while self._is_active:
                 try:
-                    async with connect(Template(self.exchange.private_socket_url_template).substitute(listenKey = listenKey), ping_message = None) as private_websocket:
+                    async with connect(Template(self.exchange.private_socket_url_template).substitute(listenKey = self.listenKey_credential), ping_message = None) as private_websocket:
                         self.ws = private_websocket
                         logging.info(f"{self.exchange.name} connects to private socket success!")
                         await self.subscribe()
                         await asyncio.gather(
-                            self._listenKey_extender(),
+                            self._listenKey_manager(),
                             self._connection_manager(),
                             self.message_decoder_cplus(),
                         )
@@ -52,20 +66,11 @@ class UserDataStreamer:
                 except Exception as e:
                     logging.error(f"{self.exchange.name} subscription failed on exception: {e}.")
                     raise
-        async def _listenKey_extender(self):
-            while self.ws and self._is_active:
-                try:
-                    time_used = time.perf_counter() - listenKey_startTime
-                    #listenKey needs extension every 60 mins.
-                    if time_used <= 3600:
-                        initial_sleep_time = 3600 - time_used
-                        await asyncio.sleep(initial_sleep_time)
-                        await put_mexc_listen_key(api_key = api_key, api_secret = api_secret, listen_key=listenKey)
-                    else:
-                        await asyncio.sleep(3600)
-                        await put_mexc_listen_key(api_key = api_key, api_secret = api_secret, listen_key=listenKey)
-                except Exception as e:
-                    logging.error(f"Extend listenKey failed on exception: {e}.")
+        #mexc lisenKey valid for 24 hrs after successful connection. I do not need this just yet.
+        async def _listenKey_manager(self):
+            if not self.ws or not self._is_active:
+                del self.listenKey_credential
+
         async def _connection_manager(self):
             if not (self.exchange.ping_message and self.exchange.ping_interval):
                 return
@@ -118,10 +123,11 @@ class UserDataStreamer:
                     logging.error(f"{self.exchange.name} private socket safe closed failed on exception: {e}.")
                 finally:
                     self.ws = None
-            if listenKey:
+            #delete plain-text listenKey from mexc server
+            if self.listenKey_credential:
                 try:
-                    await delete_mexc_listen_key(api_key = api_key, api_secret = api_secret, listen_key=listenKey)
-                    logging.info("listenKey is deleted. ")
+                    await delete_mexc_listen_key(api_key = self.credentials[0], api_secret=self.credentials[1], listen_key=self.listenKey_credential)
+                    logging.info("listenKey is deleted from mexc server. ")
                 except Exception as e:
                     logging.error(f"listenkey delete failed on exception: {e}.")
 

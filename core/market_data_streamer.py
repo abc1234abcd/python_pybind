@@ -9,7 +9,7 @@ from typing import List, Any
 from mexc_protobuf import PushDataV3ApiWrapper_pb2
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 
-class MarketDataStreamer:
+class MarketDataStreamer:    
     def __init__(self, exchange: str, queue: Queue, topics: List[Any]):
         self.exchange = Exchange(exchange.lower())
         self.queue = queue
@@ -62,14 +62,8 @@ class MarketDataStreamer:
             try:
                 #binary protobuf 
                 msg = await self.ws.recv()
-                if isinstance(msg, bytes):
-                    try:
-                        # python parser
-                        result.ParseFromString(msg)
-                        print(f"python parser: {result}.")
-                    except Exception as e:
-                        logging.error(f"python message decoder error: {e}")
-                        raise
+                result.ParseFromString(msg)
+                print(f"python parser: {result}.")
             except Exception as e:
                 logging.error(f"either data streamer stopped or websocket lost connection so message_decoder_py failed:{e}.")
                 raise
@@ -89,7 +83,6 @@ class MarketDataStreamer:
                             print(f"BookTicker: {book.bid_price()}x{book.bid_quantity()}")
                         elif msg_protobuf_holder.has_public_aggredeals():
                             trades = msg_protobuf_holder.trades()
-                            print(f"{trades.event_type()}")
                             for deal in trades.deals():
                                 print(f"trades {deal.time()} {deal.quantity()} {deal.price()}{deal.trade_type()}")
                         else:
