@@ -5,55 +5,44 @@ import time
 from websockets import connect
 from string import Template
 from utils.data_class import Exchange
-from typing import Dict, Tuple
-from multiprocessing import Porcess, Queue as MQueue
+from typing import List
 from queue import Queue
 from dotenv import dotenv_values
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 from utils.mexc_user_listen_key import mexc_generate_listen_key, delete_mexc_listen_key
-from security import SafeString, SecuirtyManager
+from utils.security import SafeString, SecuirtyManager
+from pathlib import Path
 
 def create_user_data_streamer(exchange: str):
 
-    #init encrypted secrets by exchange.
-    api_key_manager = SecuirtyManager(dotenv_values(".env")[exchange.upper()]["API_KEY"])
-    secret_manager = SecuirtyManager(dotenv_values(".env")[exchange.upper()]["SECRET"])
-    #listenKey is exchange specific
-    listenKey_manager = SecuirtyManager(mexc_generate_listen_key(api_key = api_key_manager.get_secret(), api_secret =secret_manager.get_secret()))
-
+    #encrypted secrets.
+    api_key_manager = SecuirtyManager(dotenv_values(Path(__file__).parent.parent/".env")[f"{exchange.upper()}_API_KEY"])
+    secret_manager = SecuirtyManager(dotenv_values(Path(__file__).parent.parent/".env")[f"{exchange.upper()}_SECRET"])
+    with api_key_manager.get_secret().get() as api_key, secret_manager.get_secret().get() as secret:
+        listenKey_manager = SecuirtyManager(mexc_generate_listen_key(api_key = api_key, api_secret =secret))
+    
     class UserDataStreamer:
-        #memory safe: auto-clear 
-        @property
-        def api_key(self) ->SafeString:
-            return api_key_manager.get_secret()
-        @property
-        def secret(self) -> SafeString:
-            return secret_manager.get_secret()
-        @property
-        def listenKey_credential(self) -> SafeString:
-            return listenKey_manager.get_secret()
-        
-        #Construct UserDateStreamer
-        def __init__(self, queue: Queue, topics: Dict[str]):
+        def __init__(self, queue: Queue, topics: List[dict]):
             self.exchange = Exchange(exchange.lower())
             self.topics = topics
             self.queue = queue
             self.ws = None
             self._is_active = False
-
         async def connect(self):
             self._is_active = True
             while self._is_active:
                 try:
-                    async with connect(Template(self.exchange.private_socket_url_template).substitute(listenKey = self.listenKey_credential), ping_message = None) as private_websocket:
-                        self.ws = private_websocket
-                        logging.info(f"{self.exchange.name} connects to private socket success!")
-                        await self.subscribe()
-                        await asyncio.gather(
-                            self._listenKey_manager(),
-                            self._connection_manager(),
-                            self.message_decoder_cplus(),
-                        )
+                    #use encrypted secret as SafeString
+                    with listenKey_manager.get_secret().get() as listenKey:
+                        async with connect(Template(self.exchange.private_socket_url_template).substitute(listenKey = listenKey), ping_interval=None) as private_websocket:
+                            self.ws = private_websocket
+                            logging.info(f"{self.exchange.name} connects to private socket success!")
+                            await self.subscribe()
+                            await asyncio.gather(
+                                self._listenKey_manager(),
+                                self._connection_manager(),
+                                self.message_decoder_cplus(),
+                            )
                 except Exception as e:
                     logging.error(f"{self.exchange.name} connect to private websocket failed: {e}. Reconnecting immediately...")
         async def subscribe(self):
@@ -70,7 +59,6 @@ def create_user_data_streamer(exchange: str):
         async def _listenKey_manager(self):
             if not self.ws or not self._is_active:
                 del self.listenKey_credential
-
         async def _connection_manager(self):
             if not (self.exchange.ping_message and self.exchange.ping_interval):
                 return
@@ -130,11 +118,10 @@ def create_user_data_streamer(exchange: str):
                     logging.info("listenKey is deleted from mexc server. ")
                 except Exception as e:
                     logging.error(f"listenkey delete failed on exception: {e}.")
-
+    return UserDataStreamer
 
                 
         
-
 
 
 

@@ -1,7 +1,7 @@
 exchanges:
   mexc:
     public_socket_url: "wss://wbs-api.mexc.com/ws"
-    private_socket_url: "wss://wbs-api.mexc.com/ws?listenKey=@${listenKey}" 
+    private_socket_url: "wss://wbs-api.mexc.com/ws?listenKey=${listenKey}" 
     max_subscription: 30
     ping_interval: 60
     max_listenKey: 60

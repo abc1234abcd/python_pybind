@@ -8,17 +8,18 @@ import asyncio
 from dotenv import dotenv_values
 from core.market_data_streamer import MarketDataStreamer
 from core.user_data_streamer import create_user_data_streamer
-from security import SecuirtyManager
+from utils.security import SecuirtyManager
 
 
-async def main(market_data_topics, user_data_topics, api_key, api_secret):
+async def main(user_data_topics):
     market_data_queue = Queue()
     user_data_queue = Queue()
     mexc_market_data_streamer = MarketDataStreamer(exchange = 'mexc', queue=market_data_queue, topics=market_data_topics)
-    mexc_user_data_streamer = create_user_data_streamer(SecuirtyManager(secret=dotenv_values(".env")["MEXC_API_KEY"]).get_secret(), SecuirtyManager(secret=dotenv_values(".env")["MEXC_SECRET"]).get_secret())
+    mexc_user_data_streamer = create_user_data_streamer(exchange = 'mexc')
+    mexc_user_data_streamer_instance = mexc_user_data_streamer(queue = user_data_queue, topics = user_data_topics)
     await asyncio.gather(
-        mexc_market_data_streamer.connect(),
-        mexc_user_data_streamer.connect(),
+        #mexc_market_data_streamer.connect(),
+        mexc_user_data_streamer_instance.connect(),
     )
 
 if __name__=='__main__':
@@ -35,14 +36,8 @@ if __name__=='__main__':
     market_data_topics= [{"method": "SUBSCRIPTION", "params": ["spot@public.kline.v3.api.pb@BTCUSDT@Min1", "spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT", "spot@public.aggre.deals.v3.api.pb@100ms@BTCUSDT"]}]
     user_data_topics =  [{"method": "SUBSCRIPTION", "params": ["spot@private.account.v3.api.pb", "spot@private.deals.v3.api.pb", "spot@private.orders.v3.api.pb"]}]
 
-
-    #key protections
-    
-    x = SecuirtyManager(secret=dotenv_values(".env")["MEXC_API_KEY"]).get_secret()
-    print(x)
-
-
-    #asyncio.run(main(market_data_topics))
+    asyncio.run(main(user_data_topics))
    
 
     
+#SecuirtyManager(secret=dotenv_values(".env")["MEXC_API_KEY"]).get_secret(), SecuirtyManager(secret=dotenv_values(".env")["MEXC_SECRET"]).get_secret()
