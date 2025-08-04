@@ -23,7 +23,7 @@ class SafeString:
         ctypes.memset(self._buffer, 0, len(self._buffer))
 
 #secret encryption and use secret as SafeString
-class SecuirtyManager:
+class SecurityManager:
     def __init__(self, secret: str):
         self._cipher = Fernet(dotenv_values(Path(__file__).parent.parent/".env")["FERNET_KEY"].encode())
         self._encrypt_secret = self._cipher.encrypt(secret.encode('utf-8'))

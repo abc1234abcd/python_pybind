@@ -15,6 +15,15 @@ class UserData(Enum):
 class SubscriptionAction(Enum):
     SUBSCRIBE ='subscribe'
     UNSUBSCRIBE = 'unsubscribe'
+class OrderSide(Enum):
+    BUY = 'BUY'
+    SELL = 'SELL'
+class OrderType(Enum):
+    LIMIT = "LIMIT"
+    MARKET = "MARKET"
+    LIMIT_MAKER = "LIMIT_MAKER"
+    IMMEDIATE_OR_CANCEL = "IMMEDIATE_OR_CANCEL"
+    FILL_OR_KILL = "FILL_OR_KILL"
 
 @dataclass
 class Exchange:

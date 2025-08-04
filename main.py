@@ -1,43 +1,79 @@
-import os
 import logging
-from datetime import datetime
-from pathlib import Path
-import logging
-from queue import Queue
 import asyncio
 from dotenv import dotenv_values
+from queue import Queue
+from pathlib import Path
+from typing import List
+from core.mexc_api import MexcApiClient
+from utils.security import SecurityManager
+from log_config import configure_logging
 from core.market_data_streamer import MarketDataStreamer
-from core.user_data_streamer import create_user_data_streamer
-from utils.security import SecuirtyManager
+from core.user_data_streamer import UserDataStreamer
 
 
-async def main(user_data_topics):
-    market_data_queue = Queue()
-    user_data_queue = Queue()
-    mexc_market_data_streamer = MarketDataStreamer(exchange = 'mexc', queue=market_data_queue, topics=market_data_topics)
-    mexc_user_data_streamer = create_user_data_streamer(exchange = 'mexc')
-    mexc_user_data_streamer_instance = mexc_user_data_streamer(queue = user_data_queue, topics = user_data_topics)
+
+
+
+
+
+
+
+
+
+async def shutdown(data_streamers):
+    logging.info("Initiating shutdown...")
     await asyncio.gather(
-        #mexc_market_data_streamer.connect(),
-        mexc_user_data_streamer_instance.connect(),
+        *(data_streamer.safe_close() for data_streamer in data_streamers)
     )
+    logging.info('Showdown complete.')
+    logging.shutdown()
 
+async def main(exchange: str, market_data_topics: List, user_data_topics: List, api_key: SecurityManager, api_secret: SecurityManager):
+    kline_queue = Queue()
+    trades_queue = Queue()
+    book_ticker_queue = Queue()
+    market_data_streamer_instance = MarketDataStreamer(exchange = exchange, kline_queue=kline_queue, trades_queue = trades_queue, book_ticker_queue=book_ticker_queue, topics=market_data_topics)
+    #user_data_queue = Queue()
+    #user_data_streamer_instance = UserDataStreamer(exchange = exchange, queue = user_data_queue, topics = user_data_topics, api_key=api_key, api_secret=api_secret)
+    try:
+        await asyncio.gather(
+            #user_data_streamer_instance.connect(),
+            market_data_streamer_instance.connect()
+        )
+    except KeyboardInterrupt:
+        logging.info("Receved KeyboardInterrupt, shutting down gracefully...")
+        market_data_streamer_instance._is_active = False
+        #user_data_streamer_instance._is_active = False
+        await asyncio.gather(
+            market_data_streamer_instance.safe_close(),
+            #user_data_streamer_instance.safe_close()
+        )
+    except Exception as e:
+        logging.error(f"main script throw error on exception:{e}.")
+        await asyncio.gather(
+            market_data_streamer_instance.safe_close(),
+            #user_data_streamer_instance.safe_close()
+        )
+        raise
 if __name__=='__main__':
     #logging
-    log_file_path = Path(__file__).parent/'logs'/f"bot_{datetime.now().strftime('%Y-%m-%d')}.log"
-    logging.basicConfig(
-        filename = str(log_file_path),
-        format = "%(asctime)s %(levelname)-7s %(message)s",
-        level = logging.INFO,
-        datefmt = "%Y-%m-%d %H:%M:%S"
-    )
+    configure_logging()
 
-    # generate topics to make subscriptions to all required live data stream.
+    exchange = "mexc"
+
+    # topics
     market_data_topics= [{"method": "SUBSCRIPTION", "params": ["spot@public.kline.v3.api.pb@BTCUSDT@Min1", "spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT", "spot@public.aggre.deals.v3.api.pb@100ms@BTCUSDT"]}]
     user_data_topics =  [{"method": "SUBSCRIPTION", "params": ["spot@private.account.v3.api.pb", "spot@private.deals.v3.api.pb", "spot@private.orders.v3.api.pb"]}]
 
-    asyncio.run(main(user_data_topics))
-   
+    #encrypted secrets
+    api_key = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_API_KEY"])
+    api_secret = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_SECRET"])
 
-    
-#SecuirtyManager(secret=dotenv_values(".env")["MEXC_API_KEY"]).get_secret(), SecuirtyManager(secret=dotenv_values(".env")["MEXC_SECRET"]).get_secret()
+
+    #if type == market, quantity or quanteORderQty is mandatory: 
+    #e.g BTCUSDT: BUY side: the order will buy as many BTC as quiteOrderQty USDT can.
+    #.            Sell side: the order will see the quantity of BTC.
+    #market order only for now:
+
+    asyncio.run(main(exchange = exchange, market_data_topics=market_data_topics, user_data_topics = user_data_topics, api_key=api_key, api_secret=api_secret))
+   

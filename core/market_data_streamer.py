@@ -6,13 +6,16 @@ from queue import Queue
 from websockets import connect 
 from utils.data_class import Exchange
 from typing import List, Any
+from core.mexc_api import MexcApiClient
 from mexc_protobuf import PushDataV3ApiWrapper_pb2
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 
 class MarketDataStreamer:    
-    def __init__(self, exchange: str, queue: Queue, topics: List[Any]):
+    def __init__(self, exchange: str, kline_queue: Queue, trades_queue: Queue, book_ticker_queue: Queue, topics: List[Any]):
         self.exchange = Exchange(exchange.lower())
-        self.queue = queue
+        self.kline_queue = kline_queue
+        self.trades_queue = trades_queue
+        self.book_ticker_queue = book_ticker_queue
         self.topics = topics
         self.ws = None
         self._is_active = False
@@ -45,13 +48,8 @@ class MarketDataStreamer:
             return
         while self._is_active:
             try:
-                ping_start_time = time.perf_counter()
                 await self.ws.send(json.dumps(self.exchange.ping_message))
-                elapsed = time.perf_counter() - ping_start_time
-                #hardcoded inteval[int] takes seconds as unit
-                ping_interval_integer = 60
-                ping_precise_sleep_time = max(0, ping_interval_integer - elapsed)
-                await asyncio.sleep(ping_precise_sleep_time)
+                await asyncio.sleep(30)
             except Exception as e:
                 logging.error(f"{self.exchange.name} conenction manager failed pinging (retry in 2s).")
                 await asyncio.sleep(2)
@@ -67,30 +65,42 @@ class MarketDataStreamer:
             except Exception as e:
                 logging.error(f"either data streamer stopped or websocket lost connection so message_decoder_py failed:{e}.")
                 raise
+    #no queue re-direct but generate signal as soon as msg is received.
     async def message_decoder_cplus(self):
         msg_protobuf_holder = PushDataV3ApiWrapper()
         while self._is_active and self.ws:
             try:
                 msg = await self.ws.recv()                
                 if isinstance(msg, bytes):
+                    #this msg_protobuf_holder has all msg that subscribed from the 3 topics.
                     if msg_protobuf_holder.parse(msg):
-                        #print(f"Channel: {msg_protobuf_holder.channel}")
+                        #print(f"channel: {msg_protobuf_holder.channel}, symbol: {msg_protobuf_holder.symbol}")
                         if msg_protobuf_holder.has_kline():
                             kline = msg_protobuf_holder.kline()
-                            print(f"Kline: {kline.interval()} {kline.opening_price()}")
+                            kline_dict = {
+                                "symbol": msg_protobuf_holder.symbol,
+                                "timestamp": msg_protobuf_holder.send_time(),
+                                "openingprice": kline.opening_price(),
+                                "closingprice": kline.closing_price(),
+                                "windowstart": kline.window_start(),
+                                "windowend": kline.window_end(),
+                            }
+                            print(kline_dict)
                         elif msg_protobuf_holder.has_book_ticker():
                             book = msg_protobuf_holder.book_ticker()
-                            print(f"BookTicker: {book.bid_price()}x{book.bid_quantity()}")
+                            book_ticker_dict = {
+
+                            }
                         elif msg_protobuf_holder.has_public_aggredeals():
                             trades = msg_protobuf_holder.trades()
-                            for deal in trades.deals():
-                                print(f"trades {deal.time()} {deal.quantity()} {deal.price()}{deal.trade_type()}")
+                            #for deal in trades.deals():
+                                #print(f"trades {deal.time()} {deal.quantity()} {deal.price()}{deal.trade_type()}")
                         else:
                             logging.error(f"{msg} parsed but no recognized data type")
                     else:
                         logging.error("Failed to parse protobuf message")
                 else:
-                    logging.error(f"Non-bytes message: {msg}")
+                    logging.warning(f"Non-bytes message: {msg}")
             except Exception as e:
                 logging.error(f"cplus message decoder error:{e}.")
                 raise
