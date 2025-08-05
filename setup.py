@@ -1,7 +1,9 @@
 from setuptools import setup, Extension, find_packages
+from Cython.Build import cythonize
 import os
 import sys
 import pybind11
+import numpy as np
 
 def get_include_paths():
     project_root = os.path.dirname(os.path.abspath(__file__))
@@ -12,6 +14,7 @@ def get_include_paths():
         "/opt/homebrew/include",
         os.path.join(sys.prefix, "include"),
         os.path.join(sys.prefix, "include", "google", "protobuf"),
+        np.get_include(),
     ]
 def get_library_dirs():
     return [
@@ -54,14 +57,30 @@ proto_extension = Extension(
     language="c++",
 )
 
+cython_extension = [
+    Extension(
+        "rsi",
+        sources=["strategy/rsi.pyx"],
+        include_dirs=get_include_paths() + [np.get_include()],
+        extra_compile_args=[
+            "-O3", 
+            "-march=native", 
+            "-ffast-math", 
+        ],
+        language="c++",
+    )
+]
+
 setup(
     name="bot",
     version="0.1.0",
     packages=find_packages(),
-    ext_modules=[proto_extension],
+    ext_modules= cythonize(cython_extension) + [proto_extension],
     python_requires=">=3.7",
     install_requires=[
         'pybind11>=2.6.0',
         'protobuf>=6.31.1',
+        'numpy>=1.21.0',
+        'cython>=0.29.0',
     ]
 )

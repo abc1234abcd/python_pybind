@@ -11,15 +11,6 @@ from core.market_data_streamer import MarketDataStreamer
 from core.user_data_streamer import UserDataStreamer
 
 
-
-
-
-
-
-
-
-
-
 async def shutdown(data_streamers):
     logging.info("Initiating shutdown...")
     await asyncio.gather(

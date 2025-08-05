@@ -9,9 +9,26 @@ from typing import List, Any
 from core.mexc_api import MexcApiClient
 from mexc_protobuf import PushDataV3ApiWrapper_pb2
 from proto_wrapper_mexc import PushDataV3ApiWrapper
+from rsi import calculate_rsi
+
+'''
+i would either seperate each market data streamer: e.g book_ticker_streamer, and kline_streamer. so i do not need to redirect each msg from mexc server.
+
+that would be: kline_streamer, with rsi.pyx to generate buy/sell directly, and send the signal through a msg queue to book_ticker_streamer, check book and then
+make orders through api. so rsi.super(kline_streamer), mexc_api.super(book_ticker)
+finally, the user data streamer to verify if order is filled and account updates etc. 
+
+or:
+
+stream kline and book_ticker from the same socket, direct msg, rsi consumes kline.closeprice to generate buy/sell,signal, 
+if signal, check book_ticker to use mexc-api to make order.
+
+data streamer to use them 
+'''
 
 class MarketDataStreamer:    
-    def __init__(self, exchange: str, kline_queue: Queue, trades_queue: Queue, book_ticker_queue: Queue, topics: List[Any]):
+    def __init__(self, exchange: str, api_client: MexcApiClient, kline_queue: Queue, trades_queue: Queue, book_ticker_queue: Queue, topics: List[Any]):
+        self.api_client = api_client
         self.exchange = Exchange(exchange.lower())
         self.kline_queue = kline_queue
         self.trades_queue = trades_queue
@@ -65,44 +82,55 @@ class MarketDataStreamer:
             except Exception as e:
                 logging.error(f"either data streamer stopped or websocket lost connection so message_decoder_py failed:{e}.")
                 raise
-    #no queue re-direct but generate signal as soon as msg is received.
     async def message_decoder_cplus(self):
         msg_protobuf_holder = PushDataV3ApiWrapper()
         while self._is_active and self.ws:
             try:
                 msg = await self.ws.recv()                
                 if isinstance(msg, bytes):
-                    #this msg_protobuf_holder has all msg that subscribed from the 3 topics.
                     if msg_protobuf_holder.parse(msg):
-                        #print(f"channel: {msg_protobuf_holder.channel}, symbol: {msg_protobuf_holder.symbol}")
                         if msg_protobuf_holder.has_kline():
                             kline = msg_protobuf_holder.kline()
                             kline_dict = {
                                 "symbol": msg_protobuf_holder.symbol,
-                                "timestamp": msg_protobuf_holder.send_time(),
+                                "timestamp": int(time.time()*1000),
                                 "openingprice": kline.opening_price(),
                                 "closingprice": kline.closing_price(),
                                 "windowstart": kline.window_start(),
                                 "windowend": kline.window_end(),
                             }
-                            print(kline_dict)
                         elif msg_protobuf_holder.has_book_ticker():
                             book = msg_protobuf_holder.book_ticker()
                             book_ticker_dict = {
-
+                                "symbol": msg_protobuf_holder.symbol,
+                                "timestamp": int(time.time()*1000),
+                                "bidprice": book.bid_price(),
+                                "bidqty": book.bid_quantity(),
+                                "askprice": book.ask_price(),
+                                "askqty": book.ask_quantity()
                             }
+                            print(book_ticker_dict)
                         elif msg_protobuf_holder.has_public_aggredeals():
                             trades = msg_protobuf_holder.trades()
-                            #for deal in trades.deals():
-                                #print(f"trades {deal.time()} {deal.quantity()} {deal.price()}{deal.trade_type()}")
+                            for deal in trades.deals():
+                                trade_dict ={
+                                    "symbol": msg_protobuf_holder.symbol,
+                                    "timestamp": int(time.time()*1000),
+                                    "price": deal.price(),
+                                    "quantity": deal.quantity(),
+                                    "tradetype": deal.trade_type(),
+                                    "tradetime": deal.time()
+                                }
+                                print(trade_dict)
                         else:
                             logging.error(f"{msg} parsed but no recognized data type")
                     else:
                         logging.error("Failed to parse protobuf message")
                 else:
+                    #pong and subscription confirmation msg etc.
                     logging.warning(f"Non-bytes message: {msg}")
             except Exception as e:
-                logging.error(f"cplus message decoder error:{e}.")
+                logging.error(f"cplus message decoder fail on exception:{e}.")
                 raise
     async def safe_close(self) -> None:
         self._is_active = False
