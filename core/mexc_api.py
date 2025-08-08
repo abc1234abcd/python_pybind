@@ -10,15 +10,23 @@ from utils.data_class import OrderSide, OrderType
 
 
 class MexcApiClient:
-    def __init__(self, api_key: SecurityManager, api_secret: SecurityManager):
+    def __init__(self, api_key: SecurityManager, api_secret: SecurityManager, timeout: tuple =(0.5, 0.8), pool_config: dict = None):
         self.api_key = api_key
         self.api_secret = api_secret
         self.api_base_url = "https://api.mexc.com"
-        #connection pooling
+        self.timeout = timeout
+        #pool config: allow queued connections, fast fail, non-block if pool full.
+        default_pool_config = {
+            'pool_connections': 5,
+            'pool_maxsize': 10,
+            'max_retries': 0,
+            'pool_block': False
+        }
+        if pool_config:
+            default_pool_config.update(pool_config)
+        adapter = requests.adapters.HTTPAdapter(**default_pool_config)
         self.session = requests.Session()
-        #connection config: allow queued connections, fast fail, non-block if pool full.
-        adapter = requests.adapters.HTTPAdapter(pool_connections = 5, pool_maxsize = 10, max_retries = 0, pool_block = False)
-        self.session.mount('https//', adapter)
+        self.session.mount('https://', adapter)
         self.session.headers = None
 
     @property
@@ -30,7 +38,7 @@ class MexcApiClient:
     
     def _sign_message(self, params: dict) -> Dict[str, Any]:
         #fast copy
-        totalParams = {k:v for k, v in params.items()}
+        totalParams = {**params}
         if 'timestamp' not in totalParams:
             totalParams['timestamp'] = int(time.time()*1000)
         query_string = urllib.parse.urlencode(sorted(totalParams.items()))
@@ -45,7 +53,7 @@ class MexcApiClient:
         totalParams = self._sign_message(params = {})
         try: 
             request = requests.Request('POST', self.api_base_url+url_path, headers = self.session.headers, params = totalParams).prepare()
-            response = self.session.send(request, timeout = (0.03, 0.05))
+            response = self.session.send(request, timeout = self.timeout)
             response.raise_for_status()
             return SecurityManager(mexc_listen_key = request.json()['listenKey'])
         except Exception as e:
@@ -58,7 +66,7 @@ class MexcApiClient:
             totalParams = self._sign_message(params = params)
             try:
                 request = requests.Request('PUT', self.api_base_url + url_path, headers = self.session.headers, params = totalParams).prepare()
-                response = self.session.send(request, timeout = (0.03, 0.05))
+                response = self.session.send(request, timeout = self.timeout)
                 response.raise_for_status()
                 return response.json()['listenKey'] == listen_key
             except Exception as e:
@@ -72,21 +80,15 @@ class MexcApiClient:
             totalParams = self._sign_message(params = params)
             try:
                 request = requests.Request('DELETE', self.api_base_url + url_path, headers = self.session.headers, params = totalParams).prepare()
-                response = self.session.send(request, timeout = (0.03, 0.05))
+                response = self.session.send(request, timeout = self.timeout)
                 response.raise_for_status()
-                return request.json(['listenKey']) == listen_key
+                return response.json(['listenKey']) == listen_key
             except Exception as e:
                 logging.error(f"delete listen key failed on exception: {e}")
                 return False
     
-    def make_orders(self, symbol: str, side: OrderSide, type: OrderType, quantity: Optional[float] = None, quoteOrderQty: Optional[float] = None, price: Optional[float] = None, newClientOrderId: Optional[str] = None, recvWindow: Optional[int] = None) -> dict:
+    def submit_orders(self, params: dict, quantity: Optional[float] = None, quoteOrderQty: Optional[float] = None, price: Optional[float] = None, newClientOrderId: Optional[str] = None, recvWindow: Optional[int] = None) -> dict:
         url_path = "/api/v3/order/test"
-        params = {
-            "symbol": symbol.upper(),
-            "side": side.value,
-            "type": type.value,
-            "timestamp": int(time.time()*1000)
-        }
         if quantity is not None:
             params['quantity'] = quantity
         if quoteOrderQty is not None:
@@ -100,7 +102,7 @@ class MexcApiClient:
         totalParams = self._sign_message(params = params)
         try:
             request = requests.Request('POST', self.api_base_url + url_path, headers = self.session.headers, params = totalParams).prepare()
-            response = self.session.send(request, timeout = (0.03, 0.05), allow_redirects=False)
+            response = self.session.send(request, timeout = self.timeout, allow_redirects=False)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -124,7 +126,7 @@ class MexcApiClient:
         totalParams = self._sign_message(params = params)
         try:
             request = requests.Request('POST', self.api_base_url + url_path, headers = self.session.headers, params = totalParams).prepare()
-            response = self.session.send(request, timeout = (0.03, 0.05))
+            response = self.session.send(request, timeout = self.timeout)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -142,11 +144,22 @@ class MexcApiClient:
         totalParams = self._sign_message(params = params)
         try:
             req = requests.Request('DELETE',self.api_base_url + url_path, headers = self.session.headers, params = totalParams).prepare()
-            response = self.session.send(req, timeout= (0.03, 0.05))
+            response = self.session.send(req, timeout= self.timeout)
             response.raise_for_status()
             return response.json()
         except Exception as e:
             logging.error(f"mexc cancel all order failed on exception: {e}.")
+
+    def order_status(self, orderId: str) -> dict:
+        url_path = "/api/v3/order"
+        try:
+            params = {'timestamp': int(time.time()*1000), 'orderId': orderId}
+            req = requests.Request('GET', self.api_base_url + url_path, headers = self.session.headers, params = params).prepare()
+            response = self.session.send(req, timeout = self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logging.error("mexc order status enquiry failed on exceptio: {e}.")
 
         
 

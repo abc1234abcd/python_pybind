@@ -20,30 +20,27 @@ async def shutdown(data_streamers):
     logging.shutdown()
 
 async def main(exchange: str, market_data_topics: List, user_data_topics: List, api_key: SecurityManager, api_secret: SecurityManager):
-    kline_queue = Queue()
-    trades_queue = Queue()
-    book_ticker_queue = Queue()
-    market_data_streamer_instance = MarketDataStreamer(exchange = exchange, kline_queue=kline_queue, trades_queue = trades_queue, book_ticker_queue=book_ticker_queue, topics=market_data_topics)
-    #user_data_queue = Queue()
-    #user_data_streamer_instance = UserDataStreamer(exchange = exchange, queue = user_data_queue, topics = user_data_topics, api_key=api_key, api_secret=api_secret)
+    market_data_streamer_instance = MarketDataStreamer(exchange = exchange, topics=market_data_topics)
+    user_data_queue = Queue()
+    user_data_streamer_instance = UserDataStreamer(exchange = exchange, queue = user_data_queue, topics = user_data_topics, api_key=api_key, api_secret=api_secret)
     try:
         await asyncio.gather(
-            #user_data_streamer_instance.connect(),
+            user_data_streamer_instance.connect(),
             market_data_streamer_instance.connect()
         )
     except KeyboardInterrupt:
         logging.info("Receved KeyboardInterrupt, shutting down gracefully...")
         market_data_streamer_instance._is_active = False
-        #user_data_streamer_instance._is_active = False
+        user_data_streamer_instance._is_active = False
         await asyncio.gather(
             market_data_streamer_instance.safe_close(),
-            #user_data_streamer_instance.safe_close()
+            user_data_streamer_instance.safe_close()
         )
     except Exception as e:
         logging.error(f"main script throw error on exception:{e}.")
         await asyncio.gather(
             market_data_streamer_instance.safe_close(),
-            #user_data_streamer_instance.safe_close()
+            user_data_streamer_instance.safe_close()
         )
         raise
 if __name__=='__main__':
@@ -64,7 +61,7 @@ if __name__=='__main__':
     #if type == market, quantity or quanteORderQty is mandatory: 
     #e.g BTCUSDT: BUY side: the order will buy as many BTC as quiteOrderQty USDT can.
     #.            Sell side: the order will see the quantity of BTC.
-    #market order only for now:
+   
 
     asyncio.run(main(exchange = exchange, market_data_topics=market_data_topics, user_data_topics = user_data_topics, api_key=api_key, api_secret=api_secret))
    

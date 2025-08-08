@@ -1,7 +1,25 @@
 asyncio==3.4.3
--e git+https://github.com/abc1234abcd/bot.git@6010358a0f4579e7eebdca2e7f6cf4b1b068a61a#egg=bot
+-e git+https://github.com/abc1234abcd/bot.git@88d022e26c3301b3150b86cc183aee54248faf2b#egg=bot
+certifi==2025.7.14
+cffi==1.17.1
+charset-normalizer==3.4.2
+cryptography==45.0.5
+Cython==3.1.2
+idna==3.10
+llvmlite==0.44.0
+numba==0.61.2
+numpy==2.2.6
+pandas==2.3.1
 protobuf==6.31.1
 pybind11==3.0.0
+pycparser==2.22
+python-dateutil==2.9.0.post0
+python-dotenv==1.1.1
+pytz==2025.2
+PyYAML==6.0.2
 requests==2.32.4
 setuptools==80.9.0
+six==1.17.0
+tzdata==2025.2
+urllib3==2.5.0
 websockets==15.0.1

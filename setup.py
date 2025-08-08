@@ -66,6 +66,7 @@ cython_extension = [
             "-O3", 
             "-march=native", 
             "-ffast-math", 
+            "-fno-exceptions" 
         ],
         language="c++",
     )
