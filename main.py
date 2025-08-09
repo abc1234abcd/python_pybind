@@ -58,7 +58,7 @@ if __name__=='__main__':
     api_secret = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_SECRET"])
 
 
-    #if type == market, quantity or quanteORderQty is mandatory: 
+    #if type == market, quantity or quoteOrderQty is mandatory: 
     #e.g BTCUSDT: BUY side: the order will buy as many BTC as quiteOrderQty USDT can.
     #.            Sell side: the order will see the quantity of BTC.
    

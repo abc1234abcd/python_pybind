@@ -1,5 +1,4 @@
 from setuptools import setup, Extension, find_packages
-from Cython.Build import cythonize
 import os
 import sys
 import pybind11
@@ -57,26 +56,43 @@ proto_extension = Extension(
     language="c++",
 )
 
-cython_extension = [
-    Extension(
-        "rsi",
-        sources=["strategy/rsi.pyx"],
-        include_dirs=get_include_paths() + [np.get_include()],
-        extra_compile_args=[
-            "-O3", 
-            "-march=native", 
-            "-ffast-math", 
-            "-fno-exceptions" 
-        ],
-        language="c++",
-    )
-]
+rsi_extension = Extension(
+    name='rsi',
+    sources=[
+        'strategy/rsi.cpp',
+    ],
+    include_dirs=get_include_paths() + [
+        np.get_include(),
+        'strategy'  
+    ],
+    extra_compile_args=[
+        "-std=c++17",
+        "-O3",
+        "-march=native",
+        "-ffast-math",
+    ],
+    language="c++",
+)
+
+slope_extension = Extension(
+    name='slope_calculator',
+    sources=['strategy/slope_calculator.cpp'],
+    include_dirs=get_include_paths() + [np.get_include()],
+    extra_compile_args=[
+        "-std=c++17",
+        "-O3",
+        "-mcpu=apple-m1",  
+        "-ffast-math",
+        "-flto"  
+    ],
+    language="c++",
+)
 
 setup(
     name="bot",
     version="0.1.0",
     packages=find_packages(),
-    ext_modules= cythonize(cython_extension) + [proto_extension],
+    ext_modules= [proto_extension, slope_extension, rsi_extension],
     python_requires=">=3.7",
     install_requires=[
         'pybind11>=2.6.0',

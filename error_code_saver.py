@@ -51,3 +51,20 @@
             except Exception as e:
                 logging.error(f"cplus message decoder fail on exception:{e}.")
                 raise
+
+
+if __name__=='__main__':
+    api_key = SecurityManager(dotenv_values(Path(__file__).parent.parent/".env")["MEXC_API_KEY"])
+    api_secret = SecurityManager(dotenv_values(Path(__file__).parent.parent/".env")["MEXC_SECRET"])
+    mexc_api_client = MexcApiClient(api_key = api_key, api_secret=api_secret)
+    sell_order = {
+            "quantity": None,  
+            "side": "BUY",
+            "symbol": "SOLUSDT",
+            "timestamp": None,  
+            "type": "MARKET"
+        }
+    #resp = mexc_api_client.account_balance()
+    orderId = 'C02__582526780620046337099'
+    default_symbol = mexc_api_client.submit_orders(params = params)
+    print(f"order status: {default_symbol}")
