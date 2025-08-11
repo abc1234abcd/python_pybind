@@ -6,7 +6,6 @@ from typing import List
 from pathlib import Path
 from decimal import Decimal
 from dotenv import dotenv_values
-from collections import deque
 from utils.security import SecurityManager
 from utils.data_class import OrderSide, OrderType
 from core.market_data_streamer import MarketDataStreamer
@@ -14,10 +13,11 @@ from core.mexc_api import MexcApiClient
 from numba import njit
 #C++ extention
 from proto_wrapper_mexc import PushDataV3ApiWrapper
-from rsi import RSICalculator
+from rsi_calculator import RSICalculator
+from slope_calculator import calculate_slope
 
 class OrderBookCache:
-    __slots__ = ['bids', 'asks', 'last_update']54
+    __slots__ = ['bids', 'asks', 'last_update']
     
     def __init__(self):
         self.bids = 0.0
@@ -40,7 +40,7 @@ class TakeProfit(MarketDataStreamer):
         self.msg_parser = PushDataV3ApiWrapper()
 
         #rsi index 
-        self.rsi_calculator = RSICalculator(14)
+        self.rsi_calculator = RSICalculator(7)
         self.price_buffer = np.zeros(20, dtype=np.float32)
         self.rsi_value_buffer = np.zeros(2, dtype = np.float32)
 
@@ -68,8 +68,8 @@ class TakeProfit(MarketDataStreamer):
         }
 
         #strategy based buffer
-        self.stop_loss_pct = 0.008  
-        self.oversold_threshold = 40
+        self.stop_loss_pct = 0.002  
+        self.oversold_threshold = 38
         self.overbought_threshold = 65
         self.trend_confirmation_bars = 3  
 
@@ -79,39 +79,44 @@ class TakeProfit(MarketDataStreamer):
         self.last_latency = 0
 
     async def _message_handler(self):
-        while self._is_active and self.ws:
-            try:
-                #binary protobuf
-                msg = await self.ws.recv()                
-                if isinstance(msg, bytes):
-                    if self.msg_parser.parse(msg):
-                        if self.msg_parser.has_book_ticker():
-                            book = self.msg_parser.book_ticker()
-                            self.ob_cache.update(
-                                bid=float(book.bid_price()),
-                                ask=float(book.ask_price())
-                            )
-                        elif self.msg_parser.has_kline():
-                            kline = self.msg_parser.kline()
-                            price = np.float32(kline.closing_price())
-                            #swap: should change to c++ ring buffer
-                            self.price_buffer[:-1] = self.price_buffer[1:]
-                            self.price_buffer[-1] = price
-                            rsi_value = self.rsi_calculator.update(price)
-                            print(f"price: {self.price_buffer[-1]}, ris:{rsi_value}")
-                            #exec
-                            await self._execute_strategy(rsi_value)
+        with open("orders.csv", 'a') as file:
+            while self._is_active and self.ws:
+                try:
+                    #binary protobuf
+                    msg = await self.ws.recv()                
+                    if isinstance(msg, bytes):
+                        if self.msg_parser.parse(msg):
+                            if self.msg_parser.has_book_ticker():
+                                book = self.msg_parser.book_ticker()
+                                self.ob_cache.update(
+                                    bid=float(book.bid_price()),
+                                    ask=float(book.ask_price())
+                                )
+                            elif self.msg_parser.has_kline():
+                                kline = self.msg_parser.kline()
+                                price = np.float32(kline.closing_price())
+                                #swap: should change to c++ ring buffer
+                                self.price_buffer[:-1] = self.price_buffer[1:]
+                                self.price_buffer[-1] = price
+                                rsi_value = self.rsi_calculator.update(price)
+                                print(f"price: {self.price_buffer[-1]}, ris: {rsi_value}")
+                                #slope based on past 5 data
+                                #slop_three = calculate_slope(self.price_buffer[-3:])
+                                #slopt_five = calculate_slope(self.price_buffer[-5:])
+                                await self._execute_strategy(rsi_value, file)
+                                #file.write(f"{int(time.time()*1000)},{str(self.price_buffer[-1])},{str(rsi_value)},{str(self.ob_cache.bids)},{str(self.ob_cache.asks)}{slop_three},{slopt_five},{slope_ten}\n")
+                                #file.flush()                           
+                            else:
+                                logging.error(f"{self.msg_parser} type is not recognized.")
                         else:
-                            logging.error(f"{self.msg_parser} type is not recognized.")
+                            logging.error(f"parse protobuf msg {self.msg_parser} failed.")
                     else:
-                        logging.error(f"parse protobuf msg {self.msg_parser} failed.")
-                else:
-                     logging.warning(f"Non-bytes message: {msg}")
-            except asyncio.TimeoutError:
-                continue
-            except Exception as e:
-                logging.error(f"cplus msg decoder fail on exception: {e}.")
-                raise
+                        logging.warning(f"Non-bytes message: {msg}")
+                except asyncio.TimeoutError:
+                    continue
+                except Exception as e:
+                    logging.error(f"cplus msg decoder fail on exception: {e}.")
+                    raise
 
     @njit(cache=True, nogil=True)
     def _calculate_size(self, price: float, stop_loss: float) -> float:
@@ -119,7 +124,7 @@ class TakeProfit(MarketDataStreamer):
         loss_per_unit = abs(price - stop_loss)
         return min(risk_amount / loss_per_unit, self.max_position)
     
-    async def _execute_strategy(self, rsi_value):
+    async def _execute_strategy(self, rsi_value, file):
         start_ns = time.time_ns()
         # Get dynamic bounds
         volatility = np.std(self.price_buffer[-20:]) / self.price_buffer[-1]
@@ -137,12 +142,13 @@ class TakeProfit(MarketDataStreamer):
         momentum = rsi_value - prev_rsi
     
         # Long entry (3 confirmed signals)
-        short_period_price_mean =  np.mean(self.price_buffer[-5:])
+        short_period_price_mean =  np.mean(self.price_buffer[-8:])
 
         #book ticker matching
         target_entry_price = self.ob_cache.asks   
         if self.position == None:
-            if (momentum > 0 and 
+            if (momentum > 1 and 
+                self.rsi_value_buffer[-1] < 32 and 
                 self.price_buffer[-1] > short_period_price_mean):
                      
                 self._buy_order['timestamp'] = str(int(time.time() * 1000))
@@ -157,6 +163,7 @@ class TakeProfit(MarketDataStreamer):
                     self.filled_entry_price = float(buy_order_status['cummulativeQuoteQty'])/self.filled_qty
                     self.position = 'LONG'
                     print(f"buy order filled: entry price : {self.filled_entry_price}")
+                    
                 #if order is not filled at all, cancel immediately, and wait for new opportunity to enter market.
                 elif buy_order_status.get('status') == "NEW":
                     cancel_order = self.api_client.cancel_order(symbol = 'SOLUSDT', orderId = buy_order_id)
@@ -166,7 +173,7 @@ class TakeProfit(MarketDataStreamer):
                         self.filled_qty = 0.0
         elif self.position == "LONG":
                 target_exit_price = self.ob_cache.bids
-                
+                #take profit rather than watching signals 
                 if target_exit_price - self.filled_entry_price > self.filled_entry_price*0.001 and momentum < 0:
                     print(f"target exist price is:{target_entry_price}, filled entry price: {self.filled_entry_price}")
                     self._sell_order["quantity"] = str(self.filled_qty)
@@ -180,6 +187,7 @@ class TakeProfit(MarketDataStreamer):
                             filled_sell_price = float(sell_order_status['cummulativeQuoteQty'])/filled_sell_qty
                             if filled_sell_qty == self.filled_qty:
                                 print(f"position cleared: profit: {filled_sell_price*self.filled_qty - self.filled_qty*self.filled_entry_price}, entry: {self.filled_entry_price}, target entry: {target_entry_price}, exit: {filled_sell_price}, target exit: {target_exit_price}")
+                                #file.write(f"position cleared: profit: {filled_sell_price*self.filled_qty - self.filled_qty*self.filled_entry_price}, entry: {self.filled_entry_price}, target entry: {target_entry_price}, exit: {filled_sell_price}, target exit: {target_exit_price}")
                                 self.position = None
                                 self.filled_entry_price = 0.0
                                 self.filled_qty = 0.0

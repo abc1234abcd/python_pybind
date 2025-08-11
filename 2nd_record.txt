@@ -1,24 +1,0 @@
-Script started on Fri Aug  8 18:27:17 2025
-[1m[7m%[27m[1m[0m                                                                                                                                                                                                                      ]7;file://Bings-MacBook-Pro.local/Users/bingxu/Documents/vs/bot[0m[27m[24m[Jbingxu@Bings-MacBook-Pro bot % [K[?2004hppython take_profit.py[?2004l
-Traceback (most recent call last):
-  File [35m"/Users/bingxu/Documents/vs/bot/take_profit.py"[0m, line [35m4[0m, in [35m<module>[0m
-    import numpy as np
-[1;35mModuleNotFoundError[0m: [35mNo module named 'numpy'[0m
-[1m[7m%[27m[1m[0m                                                                                                                                                                                                                      ]7;file://Bings-MacBook-Pro.local/Users/bingxu/Documents/vs/bot[0m[27m[24m[Jbingxu@Bings-MacBook-Pro bot % [K[?2004hi ppip install numpy[?2004l
-Requirement already satisfied: numpy in ./venv/lib/python3.13/site-packages (2.2.6)
-
-[1m[[0m[34;49mnotice[0m[1;39;49m][0m[39;49m A new release of pip is available: [0m[31;49m25.1.1[0m[39;49m -> [0m[32;49m25.2[0m
-[1m[[0m[34;49mnotice[0m[1;39;49m][0m[39;49m To update, run: [0m[32;49mpip install --upgrade pip[0m
-[1m[7m%[27m[1m[0m                                                                                                                                                                                                                      ]7;file://Bings-MacBook-Pro.local/Users/bingxu/Documents/vs/bot[0m[27m[24m[Jbingxu@Bings-MacBook-Pro bot % [K[?2004hpip install numpy[17Dpython [2Cke_profit.py[?2004l
-Traceback (most recent call last):
-  File [35m"/Users/bingxu/Documents/vs/bot/take_profit.py"[0m, line [35m4[0m, in [35m<module>[0m
-    import numpy as np
-[1;35mModuleNotFoundError[0m: [35mNo module named 'numpy'[0m
-[1m[7m%[27m[1m[0m                                                                                                                                                                                                                      ]7;file://Bings-MacBook-Pro.local/Users/bingxu/Documents/vs/bot[0m[27m[24m[Jbingxu@Bings-MacBook-Pro bot % [K[?2004h[?2004l
-
-Saving session...
-...copying shared history...
-...saving history...truncating history files...
-...completed.
-
-Script done on Fri Aug  8 18:27:50 2025

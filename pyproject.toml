@@ -1,3 +1,19 @@
 [build-system]
-requires = ["setuptools>=42", "wheel", "pybind11>=3.0.0"]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    "pybind11>=3.0.0",
+    "numpy>=1.21.0",  # Added numpy requirement
+    "pybind11[global]"
+]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "mexc_api_client"
+version = "0.1.0"
+requires-python = ">=3.7"
+dependencies = [
+    "numpy",
+    "pycurl",
+    "pybind11"
+]

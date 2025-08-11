@@ -57,7 +57,7 @@ proto_extension = Extension(
 )
 
 rsi_extension = Extension(
-    name='rsi',
+    name='rsi_calculator',
     sources=[
         'strategy/rsi.cpp',
     ],
@@ -88,16 +88,40 @@ slope_extension = Extension(
     language="c++",
 )
 
+mexc_api_extension = Extension(
+    name='mexc_api_client',
+    sources=['core/mexc_api_client.cpp'],
+    include_dirs=get_include_paths() + [
+        np.get_include(),      
+        f"{os.popen('brew --prefix nlohmann-json').read().strip()}/include"
+        f"{os.popen('brew --prefix openssl').read().strip()}/include", 
+        f'{os.popen('brew --prefix curl').read().strip()}/include',    
+    ],
+    library_dirs=get_library_dirs(),
+    libraries=["curl", "crypto", "ssl"],  
+    extra_compile_args=[
+        "-std=c++17",
+        "-O3",
+        "-march=native",
+        '-Wno-deprecated-declarations',  
+        '-ffp-contract=fast', 
+        "-DNDEBUG"
+    ],
+    language="c++",
+)
+
 setup(
     name="bot",
     version="0.1.0",
     packages=find_packages(),
-    ext_modules= [proto_extension, slope_extension, rsi_extension],
+    ext_modules= [proto_extension, slope_extension, rsi_extension, mexc_api_extension],
     python_requires=">=3.7",
     install_requires=[
         'pybind11>=2.6.0',
         'protobuf>=6.31.1',
         'numpy>=1.21.0',
         'cython>=0.29.0',
+        'nlohmann-json>=3.10.0',  
+        'pycurl>=7.45.1'          
     ]
 )

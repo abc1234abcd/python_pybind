@@ -1,5 +1,5 @@
 asyncio==3.4.3
--e git+https://github.com/abc1234abcd/bot.git@88d022e26c3301b3150b86cc183aee54248faf2b#egg=bot
+-e git+https://github.com/abc1234abcd/bot.git@5b1fc340753816ae9927316364d953c8cb5f9416#egg=bot
 certifi==2025.7.14
 cffi==1.17.1
 charset-normalizer==3.4.2
