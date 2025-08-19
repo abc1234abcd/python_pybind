@@ -1,0 +1,222 @@
+XVA and cross asset modelling
+
+Front office strategist and risk professional with 20+ years experience in quantitative modelling, business support and risk management, including model risk management. 
+Deep understanding of industry model risk management requirements, including Basel, CRD4, FRTB, SR 11-7 / OCC-2011-12, CCAR and DFAST, 
+as well as relevant UK regulation e.g. SS [3,5]/18. Extensive modelling and management experience across financial markets, including models used for; 
+derivative valuation and hedging, XVA, Basel regulatory capital, market and credit risk, 
+comprehensive capital analysis review CCAR stress testing with portfolios of wide range of derivative products. 
+Analysed ISDA proposed fallbacks and alternative benchmarks in IBOR transition and impact on XVA portfolio.
+
+
+The job:
+
+CIB:  corporate and investment banking.
+
+1. drive objectives in counterparty risk modelling(FO XVA)
+
+counterparty risk: also called credit risk or default risk, refers to the possibility that the other party in a financial contract(e.g derivative, loan, or bond) fails to meet its obligations.
+counterparty risk modelling quantifies this risk to help banks, hedge funds, and corporations ***manage exposures.***
+
+e.g. borrower will not repay a loan, a hedge fund it trades derivatives with goes bankrupt.
+
+key components of counterparty risk modelling:
+
+a. probability default: estimate the likelihood of counterparty default within a time horizon. e.g. credit scoring models: altman z-score, merton structural model. statistical models: logistic regression, machine learning. market based models: CDS spread, bond yields.
+    in Basel III requirement: banks must estiamte PD based on historical data, borrower creditworthiness, and economic conditions.
+b. loss given default: the % of exposure loss(EAD), accounting for recoveries. formula: LGD = 1 - recovery rate. recovery rate depends on collateral, seniority, and bankruptcy laws.
+c. exposure at default: the amount at risk(loss amount) when default occurs. For loan, outstanding principal + accreued interest. For derivatives: potential future exposure. 
+d. credit valuation adjustment(CVA): adjust the value of a derivative to account for counterparty risk. CVA = expected exposure * Probability Default*Loss Given Default. banks use CVA pricing to charge for risk in OTC derivatives.
+e. wrong way risk. when exposure to a counterparty increases as its credit quality worsen. aka, links exposure and credit quality. Adjust PD/EAD correlation.
+
+manage exposures refers to the process of identifying, assessing, and controlling risks in various cnotexts, such as finance. The goal is to minimize potential harm or loss by taking proactive measures.
+e.g risk management, insurance and liability, workplace safety, etc.
+
+Basel III uses PD, LGD, EAD to calculate capital: risk-weighted assets(RWA), which determine the minimum capital requirement(typically 8% of  RWA under Basel III):
+
+e.g.   RWA = EAD * risk weight(where risk weight depends on PD, LGD, and maturity).
+step 1: calculate expected loss: EL = PD*LGD*EAD
+
+
+common counterparty risk models:
+a. merton model: uses equity volatility to estimate default probability.
+b. creditMatrics(JPMorgan): simulates credit migrations based on ratings.
+c. KMV models(Moody's): estimates distrance to default using stock prices.
+d. Monte Carlo simulations: simulates future exposures in derivatives.
+e. ISDA SIMM: standardized initial margin model fo runcleared swaps.
+
+how banks and hedge funds use counterparty risk models:
+a. risk limits: setting max exposure per counterparty.
+b. collateral management: requiring margin. e.g CSA agreements.
+c. pricing adjustment: charging CVA/DVA(debit valuation adjustment).
+d. stress testing: assessing risk under extreme scenarios.
+e. regulatory compliance: basel III, Dodd-Frank, and EMIR require capital for counterparty risk.
+
+exotic and structured derivatives: are complex financial instrucments customized to meet specific risk return objectives. Unlike vanila derivatives, they have non-stand payoff structure, embedded leverage, or conditional triggers.
+
+exotic derivatives: 
+a. barrier options: payout depends on whether the underlying asset hits a predefined price level. e.g a knock-out put on Apple. if Apple crashes before bankruptcy, the option payout may go unpaid.
+b. basket options: Option on a portfolio of assets(e.g stocks, currency)
+c. lookback options: holder can 'look back' and choose the optimal price for payoff calculations.
+
+why use exotics? tailored risk exposure(e.g cheaper than vanilla options if barriers are set.) Hedging unusal risk(e.g currency crashes, commodity price spikes), speculative leverage(e.g binaries for high-risk bets.)
+
+
+structured solutions: are customized instruments designed to meet specific investment, risk management, or financing needs by combining traditional securities(e.g bonds, equity) with derivatives(options, swaps).
+they are tailored to optimize risk-return profits, tax efficiency, or regulatory capital.
+
+structured derivatives/: combine multiple instrucments(options, swaps, bonds) into a single product, often linked to market performance.
+a. CPPI structures: dynamic portfolio insurance(bond + leveraged derivatives.)
+b. credit linked notes(CLNs): bond + credit default swap(inverstor takes credit risk)
+c. autocallables: bond + option; early redemption if the underlying hits a trigger.
+d. structured deposits: bank deposits with returns linked to amrket indices or derivatives.
+
+key mechanics:
+a. underlying assets: derives value from equities, rates, credit, commodities, or FX.
+b. derivative component: options, swaps, or triggers modify payouts(e.g. autocallable features).
+c. payout structure: define returns(eg. fixed coupon + conditional upside.)
+
+real work example: hedge FX exposure with structured forwards.
+
+
+key risks of exotic and structured derivatives:
+complex risk, liquidity risk, counterparity risk, embedded risk(small market move can trigger large losses.), regulatory scrutiny.
+
+
+
+Fixed income structured notes: are hybrid debt securities that combine traditional bond features(e.g principla protection, coupons) with derivative-linked payouts. Their returns are tied to underlying assets like interests rate,
+credit spreads, or inflation, offering customized risk-return profiles beyongd vanilla bonds.
+
+key features:  
+
+2. implement XVA, structured Solutions, and fixed income structured notes modelling strategy.
+
+X-Value adjustment: a collective term for a suite of adjustments applied to the valuation of derivative and financial instrucments to account for credit risk, funding costs, capital requirements, and other real world frictions.
+It ensures that pricing relects true economic costs beyond the idealized 'risk-free' assumption.
+e.g CVA: credit valuation adjustment, DVA: debit valuation adjustment, FVA: funding valation adjustment, Capital valuation adjustment(reflects the cost of holding regulatory capital Basel III.)
+MVA: margin valuation adjustment(covers intial margin costs in cleared trades.)
+
+
+why XVA matters: traditional pricing derivatives are using 'risk-free' rates, ignoring real-world costs. real world complexity: counterparty can default(CVA). collateral and funding have costs(FVA). regulatoin require capital reserves(KVA)
+
+CVA=(1−Recovery Rate)×∫_0_t EE(t)×PD(t)dt
+
+FVA = Funding Spread × Uncollateralized Exposure
+
+where XVA is used: dervatives trading, bank balance sheet management. counterparty credit risk management.
+
+
+
+
+
+
+3.collaberate with front office trading, risk oversight, technology and model governance functions ensuring requiremnts are met. 
+
+
+4. high quality communications skills both written and verbal. 
+
+
+5. securities quantitative analytics.
+
+
+6. combine mathematical programming and market expertise to build and generate systematic strategy
+
+
+7.research on trading cost models, liquidity  models, risk models, portfolio construction methodoly, and signal generation.
+
+signal generation:
+
+trading cost: slippage, impermanet loss.
+
+liquidity models:
+
+
+8. develop automated trading algorthms, create cutting edge derviative pricing models and empircal models to provide insigt into amrket behaviour.
+
+
+9.model developement, validaton and information technology.
+
+
+required: experice in securities quant analysis.
+
+apart from securities, CIB also offer loans, deposits, fx, structured products/alternative investments, e.g. priviat equity, hedge funds, commodities ect.
+
+
+desired:
+
+1. XVA, SS and FISN modelling and model implementation.
+
+2. derivative modeling, rates, fx, equity, and commodities. 
+
+3. stochastic calculus, monte carlo. 
+
+4. interests in financial market and willing to provide pratical solution for business stakeholders.  experience with model documentation and validation.
+
+
+
+1. statiscs that describe data feature: variance, std, z-score, mean, median, 
+
+2. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+things that i mentioned in cv:
+1. LSTM and Bayesian Monte Carlo Markov Chain methods
+
+
+2. value at risk using historical data, big data theory, statistica ldistributions. calculate the probability of loss/gain for a given asset holding based on market tick data.
+
+
+3.pricing models for low latency, high frequency market making, adjusting passive order placement strategies in real time based on live amrket conditions and order book dynamics.
+
+
+4.quant model validation.
+
+
+China Telecom:
+
+1. telecom product/service pricing. 
+
+2. optimize discount structure
+
+
+GE 
+1. cash pool management through daily liquidity management and inter-company fund transfer to maximise working capital efficiency.
+
+
+2. FX hedging strategy to mitigate currency risk
+
+
+3.accounting payable reporting
+
+
+Education background:
+
+1. blockchain distributed systems, digital signatures, consensus protocol.
+
+2. machine learning in stochastic data analysis, recurrent neural networks, Bayesian monte carlo markov chain inference, particle/kalman filters.
+
+
+
+github demo projects:
+
+amm model validation: slippage is in a non-relationship with market depth.
+
+impermanet loss: impermanet loss is a function of price volatility.
+
+impermanet loss are a function of market depth.
+
+
+skill:
+
+python c++ and rust, aws, gcp, redis, mongodb, postgresql, sql, linux.

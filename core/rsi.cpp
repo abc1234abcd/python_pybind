@@ -14,6 +14,7 @@ private:
     float avg_gain;
     float avg_loss;
     const float epsilon = 1e-10f;
+    const float nan_value = std::numeric_limits<float>::quiet_NaN();
 
 public:
     RSICalculator(size_t window_size) 
@@ -40,7 +41,7 @@ public:
                 calculate_initial_averages();
                 initialized = true;
             }
-            return NAN;
+            return nan_value;
         }
 
         // Calculate price change

@@ -1,6 +1,6 @@
 import ctypes
 from contextlib import contextmanager
-from typing import ContextManager, Generator
+from typing import Generator
 from cryptography.fernet import Fernet
 from dotenv import dotenv_values
 from pathlib import Path
