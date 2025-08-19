@@ -43,6 +43,37 @@ class OrderBookCache:
     def is_thin(self) -> bool:
         return (self.asks - self.bids) > (self.asks * 0.005) 
 
+class KlineCache:
+    __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start']
+
+    def __init__(self):
+        self.closing_price = 0.0
+        self.highest_price = 0.0
+        self.lowest_price = 0.0
+        self.opening_price = 0.0
+        self.window_start = 0
+    def update(self, closing_price: float, hightest_price: float, lowest_price: float, opening_price: float, window_start: int):
+        self.closing_price = closing_price
+        self.highest_price = hightest_price
+        self.lowest_price = lowest_price
+        self.opening_price = opening_price
+        self.window_start = window_start
+
+class OrderFlowCache:
+    __slots__ = ['bid_volume', 'ask_volume', 'net_flow', 'price_delta', 'normalized_net_flow' ]
+    def __init__(self):
+        self.bid_volume = 0.0
+        self.ask_volume = 0.0
+        self.net_flow = 0.0
+        self.price_delta = 0.0
+        self.normalized_net_flow = 0.0
+    def update(self, bid_volume: float, ask_volume: float, net_flow: float, price_delta: float, normalized_net_flow: float):
+        self.bid_volume = bid_volume
+        self.ask_volume = ask_volume
+        self.net_flow = net_flow
+        self.price_delta = price_delta
+        self.normalized_net_flow = normalized_net_flow
+
 class TakeProfit(MarketDataStreamer):
     def __init__(self, exchange: str, topics: List[dict], api_client: MexcApiClient):
         super().__init__(exchange, topics)
@@ -50,12 +81,20 @@ class TakeProfit(MarketDataStreamer):
         self.msg_parser = PushDataV3ApiWrapper()
         #rsi 
         self.rsi_calculator = RSICalculator(7)
-        self.kline = None
+        self.kline_cache = KlineCache()
         self.rsi_value = None
-        self.rsi_value_buffer = np.zeros(2, dtype=np.float32)
-        
+
         #book ticker cache
         self.ob_cache = OrderBookCache()
+
+        #order flow
+        self.order_flow_cache = OrderFlowCache()
+
+        #price buffer
+        self.price_buffer = np.zeros(10, np.float64)
+
+        #rsi buffer
+        self.rsi_buffer = np.zeros(2, np.float64)
 
         #pre-allocate buy/sell order
         self.filled_entry_price = 0.0
@@ -77,75 +116,68 @@ class TakeProfit(MarketDataStreamer):
         }
 
         #strategy based buffer
-        self.stop_loss_pct = 0.001 
-        self.take_profit = 0.001
-        self.oversold_threshold = 38
-        self.overbought_threshold = 65
+        self.oversold_threshold = 40
+        self.overbought_threshold = 68
         self.position = None
+
          
         #latency control notification
         self.last_latency = 0
 
-        #order flow
-        self.order_flow = None
-        self.price_delta = 0.0
-        self.normalized_net_flow = 0.0
-
     async def _message_handler(self):  
-        with open('st_validation.csv', 'w') as file:
-            while self._is_active and self.ws:
-                try:
-                    #binary protobuf
-                    msg = await self.ws.recv()                
-                    if isinstance(msg, bytes):
-                        if self.msg_parser.parse(msg):
-                            #ob cache
-                            if self.msg_parser.has_book_ticker():
-                                book = self.msg_parser.book_ticker()
-                                self.ob_cache.update(
-                                    bid=float(book.bid_price()),
-                                    ask=float(book.ask_price())
-                                )
-                            #kline and rsi
-                            if self.msg_parser.has_kline():
-                                self.kline = self.msg_parser.kline()
-                                self.rsi_value = self.rsi_calculator.update(np.float32(self.kline.closing_price()))
-                            #market tardes and order_flow
-                            if self.msg_parser.has_public_aggredeals():
-                                    trades = self.msg_parser.trades()
-                                    if trades and trades.deals():
-                                        self.order_flow = compute_order_flow(trades.deals())
-                                        self.normalized_net_flow = self.order_flow.normalized_net_flow
-                                        self.price_delta = self.order_flow.price_delta
-                            if (self.order_flow is not None and self.rsi_value is not None and self.ob_cache is not None):
-                                 await self._execute_strategy(file)
-                        else:
-                            logging.error(f"parse protobuf msg {self.msg_parser} failed.")
+        while self._is_active and self.ws:
+            try:
+                #binary protobuf
+                msg = await self.ws.recv()                
+                if isinstance(msg, bytes):
+                    if self.msg_parser.parse(msg):
+                        #ob cache
+                        if self.msg_parser.has_book_ticker():
+                            book = self.msg_parser.book_ticker()
+                            self.ob_cache.update(
+                                bid=float(book.bid_price()),
+                                ask=float(book.ask_price())
+                            )
+                        #kline and rsi
+                        if self.msg_parser.has_kline():
+                            kline = self.msg_parser.kline()
+                            self.kline_cache.update(kline.closing_price(), kline.highest_price(), kline.lowest_price(), kline.opening_price(), kline.window_start())
+                            self.rsi_value = self.rsi_calculator.update(np.float32(self.kline_cache.closing_price))
+                            print(self.rsi_value)
+                            self.rsi_buffer[0] = self.rsi_buffer[1]
+                            self.rsi_buffer[1] = self.rsi_value
+                            self.price_buffer = np.roll(self.price_buffer, -1)
+                            self.price_buffer[-1] = self.kline_cache.closing_price
+                        #order_flow
+                        if self.msg_parser.has_public_aggredeals():
+                                trades = self.msg_parser.trades()
+                                if trades and trades.deals():
+                                    order_flow= compute_order_flow(trades.deals())
+                                    self.order_flow_cache.update(order_flow.bid_volume, order_flow.ask_volume, order_flow.net_flow, order_flow.price_delta, order_flow.normalized_net_flow)
+                        if (self.order_flow_cache is not None and self.rsi_value is not None and self.ob_cache is not None):
+                                await self._execute_strategy()
                     else:
-                        logging.warning(f"Non-bytes message: {msg}")
-                except Exception as e:
-                    logging.error(f"cplus msg decoder fail on exception: {e}.")
-                    raise
-
-    @njit(cache=True, nogil=True)
-    def _calculate_size(self, price: float, stop_loss: float) -> float:
-        risk_amount = self.api_client.account_balance() * 0.01  # 1% risk
-        loss_per_unit = abs(price - stop_loss)
-        return min(risk_amount / loss_per_unit, self.max_position)
+                        logging.error(f"parse protobuf msg {self.msg_parser} failed.")
+                else:
+                    logging.warning(f"Non-bytes message: {msg}")
+            except Exception as e:
+                logging.error(f"cplus msg decoder fail on exception: {e}.")
+                raise
     
-    async def _execute_strategy(self, file):
+    async def _execute_strategy(self):
         start_ns = time.time_ns()
         # Micro-structure filter
         if self.ob_cache.is_thin():
             return
+        
         if self.position == None:
             entry_position =( 
-                self.normalized_net_flow > 0 and
-                self.price_delta > 0 and
-                self.kline.closing_price() >= self.kline.lowest_price() and
-                self.rsi_value < self.oversold_threshold
+              10 < self.rsi_buffer[-2] < 35 and
+              self.rsi_buffer[-1] - self.rsi_buffer[-2] > 0
             )
             if entry_position:
+                print("*******entry********")
+                print(f"buy sigal: prev rsi: {self.rsi_buffer[-2]},  curr rsi: {self.rsi_value},normalized flow: {self.order_flow_cache.normalized_net_flow}, price delta: {self.order_flow_cache.price_delta}")
                 self._buy_order['timestamp'] = str(int(time.time() * 1000))
                 # exec order
                 buy_order_response= self.api_client.submit_orders(params = self._buy_order)
@@ -163,13 +195,15 @@ class TakeProfit(MarketDataStreamer):
                         self.filled_entry_price = 0.0
                         self.filled_qty = 0.0
         elif self.position == "LONG":
-                curr_pnl = (self.ob_cache.bids - self.filled_entry_price)/self.ob_cache.bids
+                curr_pnl = (self.ob_cache.bids - self.filled_entry_price)/self.filled_entry_price
                 take_profit_condition = (
-                    curr_pnl > 1.008 and
-                    self.normalized_net_flow < 0 and
-                    self.price_delta < 0 
+                    curr_pnl > 0 and
+                    self.rsi_buffer[-1] > 68 and
+                    self.rsi_buffer[-2] > self.rsi_buffer[-1] 
                 )
                 if take_profit_condition:
+                    print("********exit*******")
+                    print(f"sell signal: rsi: {self.rsi_value}, normalized flow: {self.order_flow_cache.normalized_net_flow}, price delta: {self.order_flow_cache.price_delta}")
                     self._sell_order["quantity"] = str(self.filled_qty)
                     self._sell_order['timestamp'] = str(int(time.time() * 1000))
                     try:
@@ -189,23 +223,6 @@ class TakeProfit(MarketDataStreamer):
                                 print("position is not cleared in full.")
                     except Exception as e:
                         logging.error(f"submit market order exec failed on exception: {e}.")
-                elif self.ob_cache.bids - self.filled_entry_price < -(self.filled_entry_price*self.stop_loss_pct):
-                    self._sell_order["quantity"] = self.filled_qty
-                    self._sell_order['timestamp'] = int(time.time()*1000)
-                    try:
-                        sell_order_response = self.api_client.submit_orders(self._sell_order) 
-                        sell_order_id = sell_order_response['orderId']
-                        sell_order_status =  self.api_client.order_status(orderId = sell_order_id)
-                        if sell_order_status['status'] in ['FILLED', 'PARTIALLY_FILLED']:
-                            filled_sell_qty = float(sell_order_status['executedQty'])
-                            filled_sell_price = float(sell_order_status['cummulativeQuoteQty'])/filled_sell_qty
-                            if filled_sell_qty == self.filled_qty:
-                                print(f"stop loss order exec: loss: {filled_sell_price*self.filled_qty - 10.0}, entry: {self.filled_entry_price}, exit: {filled_sell_price}")
-                        self.position = None
-                        self.filled_entry_price = 0.0
-                        self.filled_qty = 0.0
-                    except Exception as e:
-                        logging.error(f"stop loss order exec failed on exception: {e}.")
         else:
             pass
         #latency checks

@@ -12,20 +12,18 @@ struct OrderFlowResult {
     double net_flow;
     double price_delta;
     double normalized_net_flow;
-
 };
 
 OrderFlowResult compute_order_flow(const std::vector<PublicAggreDealsV3ApiItem>& deals) {
     double bid_volume = 0.0;
     double ask_volume = 0.0;
     double price_delta = 0.0;
-
+    
     if (!deals.empty()){
         double first_price = std::stod(deals.front().price());
         double last_price = std::stod(deals.back().price());
         price_delta = last_price - first_price;
     }
-
     if (!deals.empty()){
         for (const auto& deal : deals) {
             double quantity = std::stod(deal.quantity());
