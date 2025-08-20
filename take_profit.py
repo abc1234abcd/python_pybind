@@ -83,6 +83,7 @@ class TakeProfit(MarketDataStreamer):
         self.rsi_calculator = RSICalculator(7)
         self.kline_cache = KlineCache()
         self.rsi_value = None
+        self.filled_rsi = 0.0
 
         #book ticker cache
         self.ob_cache = OrderBookCache()
@@ -93,8 +94,11 @@ class TakeProfit(MarketDataStreamer):
         #price buffer
         self.price_buffer = np.zeros(10, np.float64)
 
+        #prev filled price
+        self.prev_filled_price = None
+
         #rsi buffer
-        self.rsi_buffer = np.zeros(2, np.float64)
+        self.rsi_buffer = np.zeros(100, np.float64)
 
         #pre-allocate buy/sell order
         self.filled_entry_price = 0.0
@@ -143,8 +147,8 @@ class TakeProfit(MarketDataStreamer):
                             kline = self.msg_parser.kline()
                             self.kline_cache.update(kline.closing_price(), kline.highest_price(), kline.lowest_price(), kline.opening_price(), kline.window_start())
                             self.rsi_value = self.rsi_calculator.update(np.float32(self.kline_cache.closing_price))
-                            print(self.rsi_value)
-                            self.rsi_buffer[0] = self.rsi_buffer[1]
+                            self.rsi_buffer = np.roll(self.rsi_buffer, -1)
+                            self.rsi_buffer[-1] = self.rsi_value
                             self.rsi_buffer[1] = self.rsi_value
                             self.price_buffer = np.roll(self.price_buffer, -1)
                             self.price_buffer[-1] = self.kline_cache.closing_price
@@ -154,7 +158,7 @@ class TakeProfit(MarketDataStreamer):
                                 if trades and trades.deals():
                                     order_flow= compute_order_flow(trades.deals())
                                     self.order_flow_cache.update(order_flow.bid_volume, order_flow.ask_volume, order_flow.net_flow, order_flow.price_delta, order_flow.normalized_net_flow)
-                        if (self.order_flow_cache is not None and self.rsi_value is not None and self.ob_cache is not None):
+                        if (self.order_flow_cache is not None and self.rsi_value is not None and self.ob_cache is not None) and all(item != 0.0 for item in self.rsi_buffer):
                                 await self._execute_strategy()
                     else:
                         logging.error(f"parse protobuf msg {self.msg_parser} failed.")
@@ -169,16 +173,31 @@ class TakeProfit(MarketDataStreamer):
         # Micro-structure filter
         if self.ob_cache.is_thin():
             return
+        if all(item != 0.0 for item in self.rsi_buffer):
+            rsi_mean = np.mean(self.rsi_buffer)
+            rsi_std = np.std(self.rsi_buffer)
+            print(f"mean: {rsi_mean}, std: {rsi_std}, rsi: {self.rsi_value}, close: {self.kline_cache.closing_price}")
         
-        if self.position == None:
+        if (self.position is None and rsi_mean and rsi_std and self.prev_filled_price is None):
             entry_position =( 
-              10 < self.rsi_buffer[-2] < 35 and
-              self.rsi_buffer[-1] - self.rsi_buffer[-2] > 0
+              self.rsi_buffer[-2] < rsi_mean - rsi_std and
+              self.rsi_buffer[-1] < rsi_mean and
+              self.rsi_buffer[-1] >self.rsi_buffer[-2] and
+              self.order_flow_cache.normalized_net_flow != -1 
+            )
+        if (self.position is None and rsi_mean and rsi_std and self.prev_filled_price):
+            entry_position =(
+              self.rsi_buffer[-2] < rsi_mean - rsi_std and
+              self.rsi_buffer[-1] < rsi_mean and
+              self.rsi_buffer[-1] >self.rsi_buffer[-2] and
+              self.order_flow_cache.normalized_net_flow != -1 and
+              self.ob_cache.asks <= self.prev_filled_price
             )
             if entry_position:
                 print("*******entry********")
                 print(f"buy sigal: prev rsi: {self.rsi_buffer[-2]},  curr rsi: {self.rsi_value},normalized flow: {self.order_flow_cache.normalized_net_flow}, price delta: {self.order_flow_cache.price_delta}")
                 self._buy_order['timestamp'] = str(int(time.time() * 1000))
+                self.filled_rsi = self.rsi_buffer[-1]
                 # exec order
                 buy_order_response= self.api_client.submit_orders(params = self._buy_order)
                 buy_order_id = buy_order_response.get('orderId')
@@ -187,6 +206,7 @@ class TakeProfit(MarketDataStreamer):
                     self.filled_qty = float(buy_order_status['executedQty'])
                     self.filled_entry_price = float(buy_order_status['cummulativeQuoteQty'])/self.filled_qty
                     self.position = 'LONG'
+                    self.prev_filled_price = self.filled_entry_price
                     print(f"buy order filled: entry price : {self.filled_entry_price}")
                 elif buy_order_status.get('status') == "NEW":
                     cancel_order = self.api_client.cancel_order(symbol = 'SOLUSDT', orderId = buy_order_id)
@@ -194,12 +214,13 @@ class TakeProfit(MarketDataStreamer):
                         self.position = None
                         self.filled_entry_price = 0.0
                         self.filled_qty = 0.0
-        elif self.position == "LONG":
+                        self.filled_rsi = 0.0
+        if self.position == "LONG":
                 curr_pnl = (self.ob_cache.bids - self.filled_entry_price)/self.filled_entry_price
                 take_profit_condition = (
-                    curr_pnl > 0 and
-                    self.rsi_buffer[-1] > 68 and
-                    self.rsi_buffer[-2] > self.rsi_buffer[-1] 
+                    curr_pnl > 0.00025 and
+                    self.rsi_buffer[-1] - self.filled_rsi > rsi_std and
+                    self.order_flow_cache.normalized_net_flow != 1
                 )
                 if take_profit_condition:
                     print("********exit*******")
