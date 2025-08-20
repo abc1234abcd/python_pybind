@@ -6,7 +6,7 @@ from typing import List
 from pathlib import Path
 from dotenv import dotenv_values
 from utils.security import SecurityManager
-from utils.data_class import OrderSide, OrderType
+from utils.data_class import OrderSide, OrderType, KlineCache, OrderBookCache, OrderFlowCache
 from core.market_data_streamer import MarketDataStreamer
 from core.mexc_api import MexcApiClient
 from numba import njit
@@ -16,65 +16,23 @@ from proto_wrapper_mexc import PushDataV3ApiWrapper
 from rsi_calculator import RSICalculator
 from slope_calculator import calculate_slope
 from order_flow import compute_order_flow
-
-'''
-1. buy 2. sell
-parameters: 
-
-a. market.is_thin = True if (best_asks - best_bid)/best_asks > 0.5% ;
-b. the trading strategy is designed to work in one minute timeframe, so price slope is the coefficiency of the past "one minute" trades price, which is dynamically correlated with below sub-params:
-    b.1. 
-
 '''
 
-class OrderBookCache:
-    __slots__ = ['bids', 'asks', 'last_update']
-    
-    def __init__(self):
-        self.bids = 0.0
-        self.asks = 0.0
-        self.last_update = 0
-        
-    def update(self, bid: float, ask: float):
-        self.bids = bid
-        self.asks = ask
-        self.last_update = int(time.time()*1000)
-        
-    def is_thin(self) -> bool:
-        return (self.asks - self.bids) > (self.asks * 0.005) 
+params:
 
-class KlineCache:
-    __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start']
+order_type: 1: buy 2: sell
 
-    def __init__(self):
-        self.closing_price = 0.0
-        self.highest_price = 0.0
-        self.lowest_price = 0.0
-        self.opening_price = 0.0
-        self.window_start = 0
-    def update(self, closing_price: float, hightest_price: float, lowest_price: float, opening_price: float, window_start: int):
-        self.closing_price = closing_price
-        self.highest_price = hightest_price
-        self.lowest_price = lowest_price
-        self.opening_price = opening_price
-        self.window_start = window_start
+n = 200: is the length of both price_buffer and rsi_buffer. now, it is the length that we expect complete one complete run of this st. 
 
-class OrderFlowCache:
-    __slots__ = ['bid_volume', 'ask_volume', 'net_flow', 'price_delta', 'normalized_net_flow' ]
-    def __init__(self):
-        self.bid_volume = 0.0
-        self.ask_volume = 0.0
-        self.net_flow = 0.0
-        self.price_delta = 0.0
-        self.normalized_net_flow = 0.0
-    def update(self, bid_volume: float, ask_volume: float, net_flow: float, price_delta: float, normalized_net_flow: float):
-        self.bid_volume = bid_volume
-        self.ask_volume = ask_volume
-        self.net_flow = net_flow
-        self.price_delta = price_delta
-        self.normalized_net_flow = normalized_net_flow
+rsi_buffer is used to calculate the rsi_mean and rsi_std over the fixed n gap. It dynamically adjust entry/exit point.
+price_buffer is used to calculate the slope(np.polyfit(x, y, 1)[0]) so entry/exit point can be re-adjusted based on +/- slope.
+
+window = 7: rsi window. rsi convention has a window of 14, but we take it shorter so that temporary movement will be amplified. 
+
+'''
 
 class TakeProfit(MarketDataStreamer):
+
     def __init__(self, exchange: str, topics: List[dict], api_client: MexcApiClient):
         super().__init__(exchange, topics)
         self.api_client = api_client
@@ -83,26 +41,17 @@ class TakeProfit(MarketDataStreamer):
         self.rsi_calculator = RSICalculator(7)
         self.kline_cache = KlineCache()
         self.rsi_value = None
-        self.filled_rsi = 0.0
 
-        #book ticker cache
         self.ob_cache = OrderBookCache()
-
-        #order flow
         self.order_flow_cache = OrderFlowCache()
 
-        #price buffer
-        self.price_buffer = np.zeros(10, np.float64)
-
-        #prev filled price
-        self.prev_filled_price = None
-
-        #rsi buffer
-        self.rsi_buffer = np.zeros(100, np.float64)
+        #buffer
+        self.price_buffer = np.zeros(200, np.float64)
+        self.rsi_buffer = np.zeros(200, np.float64)
 
         #pre-allocate buy/sell order
-        self.filled_entry_price = 0.0
-        self.filled_qty = 0.0
+        self.filled_entry_price = None
+        self.filled_qty = None
         self.max_position = "10" 
         self._buy_order = {
             "quoteOrderQty":  self.max_position,  
@@ -120,11 +69,14 @@ class TakeProfit(MarketDataStreamer):
         }
 
         #strategy based buffer
-        self.oversold_threshold = 40
-        self.overbought_threshold = 68
+        self.oversold_threshold = None
+        self.overbrought_threshold = None
         self.position = None
+        self.prev_filled_price = None
+        self.slope = None
+        self.filled_rsi = None
+        self.cummulated_price_delta = None
 
-         
         #latency control notification
         self.last_latency = 0
 
@@ -158,8 +110,12 @@ class TakeProfit(MarketDataStreamer):
                                 if trades and trades.deals():
                                     order_flow= compute_order_flow(trades.deals())
                                     self.order_flow_cache.update(order_flow.bid_volume, order_flow.ask_volume, order_flow.net_flow, order_flow.price_delta, order_flow.normalized_net_flow)
-                        if (self.order_flow_cache is not None and self.rsi_value is not None and self.ob_cache is not None) and all(item != 0.0 for item in self.rsi_buffer):
-                                await self._execute_strategy()
+                        if (self.order_flow_cache is not None and self.rsi_value is not None and self.ob_cache is not None) and all(item != 0 for item in self.rsi_buffer) and(item != 0 for item in self.price_buffer):
+                                slope = calculate_slope(self.price_buffer)
+                                rsi_mean = np.mean(self.rsi_buffer)
+                                rsi_std = np.std(self.rsi_buffer)
+                                print(self.rsi_value, self.kline_cache.closing_price, slope, rsi_mean, rsi_std)
+                                await self._execute_strategy(slope, rsi_mean, rsi_std)
                     else:
                         logging.error(f"parse protobuf msg {self.msg_parser} failed.")
                 else:
@@ -168,33 +124,38 @@ class TakeProfit(MarketDataStreamer):
                 logging.error(f"cplus msg decoder fail on exception: {e}.")
                 raise
     
-    async def _execute_strategy(self):
+    async def _execute_strategy(self, slope, rsi_mean, rsi_std):
         start_ns = time.time_ns()
         # Micro-structure filter
         if self.ob_cache.is_thin():
             return
-        if all(item != 0.0 for item in self.rsi_buffer):
-            rsi_mean = np.mean(self.rsi_buffer)
-            rsi_std = np.std(self.rsi_buffer)
-            print(f"mean: {rsi_mean}, std: {rsi_std}, rsi: {self.rsi_value}, close: {self.kline_cache.closing_price}")
-        
-        if (self.position is None and rsi_mean and rsi_std and self.prev_filled_price is None):
+        #dynamic thresholds
+        if slope >= 0:
+            self.oversold_threshold = rsi_mean - rsi_std
+            self.overbrought_threshold = rsi_mean + rsi_std
+            pnl_threshold = 0.001
+        else:
+            self.oversold_threshold = rsi_mean - 0.5*rsi_std
+            self.overbrought_threshold =rsi_mean + 0.3*rsi_std
+            pnl_threshold = 0.0005
+
+        if (self.position is None and self.prev_filled_price is None):
             entry_position =( 
-              self.rsi_buffer[-2] < rsi_mean - rsi_std and
-              self.rsi_buffer[-1] < rsi_mean and
-              self.rsi_buffer[-1] >self.rsi_buffer[-2] and
+              self.rsi_buffer[-2] < self.oversold_threshold and
+              self.rsi_buffer[-1] < self.oversold_threshold and
+              self.rsi_buffer[-2] < self.rsi_buffer[-1] and
               self.order_flow_cache.normalized_net_flow != -1 
             )
-        if (self.position is None and rsi_mean and rsi_std and self.prev_filled_price):
+        if (self.position is None and self.prev_filled_price is not None):
             entry_position =(
-              self.rsi_buffer[-2] < rsi_mean - rsi_std and
-              self.rsi_buffer[-1] < rsi_mean and
+              self.rsi_buffer[-2] < self.oversold_threshold and
+              self.rsi_buffer[-1] < self.oversold_threshold and
               self.rsi_buffer[-1] >self.rsi_buffer[-2] and
               self.order_flow_cache.normalized_net_flow != -1 and
               self.ob_cache.asks <= self.prev_filled_price
             )
             if entry_position:
-                print("*******entry********")
+                print("****************entry*****************")
                 print(f"buy sigal: prev rsi: {self.rsi_buffer[-2]},  curr rsi: {self.rsi_value},normalized flow: {self.order_flow_cache.normalized_net_flow}, price delta: {self.order_flow_cache.price_delta}")
                 self._buy_order['timestamp'] = str(int(time.time() * 1000))
                 self.filled_rsi = self.rsi_buffer[-1]
@@ -217,6 +178,7 @@ class TakeProfit(MarketDataStreamer):
                         self.filled_rsi = 0.0
         if self.position == "LONG":
                 curr_pnl = (self.ob_cache.bids - self.filled_entry_price)/self.filled_entry_price
+                self.cummulated_price_delta += self.order_flow_cache.price_delta
                 take_profit_condition = (
                     curr_pnl > 0.00025 and
                     self.rsi_buffer[-1] - self.filled_rsi > rsi_std and
@@ -238,8 +200,9 @@ class TakeProfit(MarketDataStreamer):
                             if filled_sell_qty == self.filled_qty:
                                 print(f"position cleared: profit: {filled_sell_price*self.filled_qty - self.filled_qty*self.filled_entry_price}, entry: {self.filled_entry_price},  exit: {filled_sell_price}")
                                 self.position = None
-                                self.filled_entry_price = 0.0
-                                self.filled_qty = 0.0
+                                self.filled_entry_price = None
+                                self.filled_qty = None
+                                
                             else:
                                 print("position is not cleared in full.")
                     except Exception as e:
