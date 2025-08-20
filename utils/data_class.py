@@ -50,12 +50,12 @@ class Exchange:
 class OrderBookCache:
     __slots__ = ['bids', 'asks', 'last_update']
     def __init__(self):
-        self.bids = None
-        self.asks = None
-        self.last_update = None 
+        self.bids =  0.0
+        self.asks =  0.0
+        self.last_update =  0.0 
     def update(self, bid: float, ask: float):
-        self.bids = bid
-        self.asks = ask
+        self.bids = float(bid)
+        self.asks = float(ask)
         self.last_update = int(time.time()*1000)
     def is_thin(self) -> bool:
         return (self.asks - self.bids) > (self.asks * 0.005) 
@@ -63,30 +63,30 @@ class OrderBookCache:
 class KlineCache:
     __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start']
     def __init__(self):
-        self.closing_price = None
-        self.highest_price = None
-        self.lowest_price = None
-        self.opening_price = None
-        self.window_start = None
+        self.closing_price = 0.0
+        self.highest_price = 0.0
+        self.lowest_price = 0.0
+        self.opening_price = 0.0
+        self.window_start = 0.0
     def update(self, closing_price: float, hightest_price: float, lowest_price: float, opening_price: float, window_start: int):
-        self.closing_price = closing_price
-        self.highest_price = hightest_price
-        self.lowest_price = lowest_price
-        self.opening_price = opening_price
-        self.window_start = window_start
+        self.closing_price = float(closing_price)
+        self.highest_price = float(hightest_price)
+        self.lowest_price = float(lowest_price)
+        self.opening_price = float(opening_price)
+        self.window_start = int(window_start)
 @dataclass
 class OrderFlowCache:
     __slots__ = ['bid_volume', 'ask_volume', 'net_flow', 'price_delta', 'normalized_net_flow' ]
     def __init__(self):
-        self.bid_volume = None
-        self.ask_volume = None
-        self.net_flow = None
-        self.price_delta = None
-        self.normalized_net_flow = None
+        self.bid_volume = 0.0
+        self.ask_volume =  0.0
+        self.net_flow =  0.0
+        self.price_delta =  0.0
+        self.normalized_net_flow =  0.0
     def update(self, bid_volume: float, ask_volume: float, net_flow: float, price_delta: float, normalized_net_flow: float):
-        self.bid_volume = bid_volume
-        self.ask_volume = ask_volume
-        self.net_flow = net_flow
-        self.price_delta = price_delta
-        self.normalized_net_flow = normalized_net_flow
+        self.bid_volume = float(bid_volume)
+        self.ask_volume = float(ask_volume)
+        self.net_flow = float(net_flow)
+        self.price_delta = float(price_delta)
+        self.normalized_net_flow = float(normalized_net_flow)
 

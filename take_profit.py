@@ -50,8 +50,8 @@ class TakeProfit(MarketDataStreamer):
         self.rsi_buffer = np.zeros(200, np.float64)
 
         #pre-allocate buy/sell order
-        self.filled_entry_price = None
-        self.filled_qty = None
+        self.filled_entry_price = 0.0
+        self.filled_qty = 0.0
         self.max_position = "10" 
         self._buy_order = {
             "quoteOrderQty":  self.max_position,  
@@ -72,7 +72,6 @@ class TakeProfit(MarketDataStreamer):
         self.oversold_threshold = None
         self.overbrought_threshold = None
         self.position = None
-        self.prev_filled_price = None
         self.slope = None
         self.filled_rsi = None
         self.cummulated_price_delta = None
@@ -101,7 +100,6 @@ class TakeProfit(MarketDataStreamer):
                             self.rsi_value = self.rsi_calculator.update(np.float32(self.kline_cache.closing_price))
                             self.rsi_buffer = np.roll(self.rsi_buffer, -1)
                             self.rsi_buffer[-1] = self.rsi_value
-                            self.rsi_buffer[1] = self.rsi_value
                             self.price_buffer = np.roll(self.price_buffer, -1)
                             self.price_buffer[-1] = self.kline_cache.closing_price
                         #order_flow
@@ -132,33 +130,24 @@ class TakeProfit(MarketDataStreamer):
         #dynamic thresholds
         if slope >= 0:
             self.oversold_threshold = rsi_mean - rsi_std
-            self.overbrought_threshold = rsi_mean + rsi_std
+            self.overbrought_threshold = rsi_mean + 0.8*rsi_std
             pnl_threshold = 0.001
         else:
             self.oversold_threshold = rsi_mean - 0.5*rsi_std
-            self.overbrought_threshold =rsi_mean + 0.3*rsi_std
+            self.overbrougt_threshold =rsi_mean + 0.3*rsi_std
             pnl_threshold = 0.0005
 
-        if (self.position is None and self.prev_filled_price is None):
-            entry_position =( 
-              self.rsi_buffer[-2] < self.oversold_threshold and
-              self.rsi_buffer[-1] < self.oversold_threshold and
-              self.rsi_buffer[-2] < self.rsi_buffer[-1] and
-              self.order_flow_cache.normalized_net_flow != -1 
-            )
-        if (self.position is None and self.prev_filled_price is not None):
+        if self.position is None :
             entry_position =(
               self.rsi_buffer[-2] < self.oversold_threshold and
               self.rsi_buffer[-1] < self.oversold_threshold and
               self.rsi_buffer[-1] >self.rsi_buffer[-2] and
-              self.order_flow_cache.normalized_net_flow != -1 and
-              self.ob_cache.asks <= self.prev_filled_price
+              self.order_flow_cache.normalized_net_flow != -1 
             )
             if entry_position:
                 print("****************entry*****************")
                 print(f"buy sigal: prev rsi: {self.rsi_buffer[-2]},  curr rsi: {self.rsi_value},normalized flow: {self.order_flow_cache.normalized_net_flow}, price delta: {self.order_flow_cache.price_delta}")
                 self._buy_order['timestamp'] = str(int(time.time() * 1000))
-                self.filled_rsi = self.rsi_buffer[-1]
                 # exec order
                 buy_order_response= self.api_client.submit_orders(params = self._buy_order)
                 buy_order_id = buy_order_response.get('orderId')
@@ -166,23 +155,24 @@ class TakeProfit(MarketDataStreamer):
                 if buy_order_status.get('status') in ['FILLED', 'PARTIALLY_FILLED']:
                     self.filled_qty = float(buy_order_status['executedQty'])
                     self.filled_entry_price = float(buy_order_status['cummulativeQuoteQty'])/self.filled_qty
+                    self.filled_rsi = self.rsi_value
                     self.position = 'LONG'
-                    self.prev_filled_price = self.filled_entry_price
                     print(f"buy order filled: entry price : {self.filled_entry_price}")
                 elif buy_order_status.get('status') == "NEW":
+                    print("order exec failed.")
                     cancel_order = self.api_client.cancel_order(symbol = 'SOLUSDT', orderId = buy_order_id)
                     if cancel_order['status'] == 'CANCELED':
                         self.position = None
-                        self.filled_entry_price = 0.0
-                        self.filled_qty = 0.0
-                        self.filled_rsi = 0.0
-        if self.position == "LONG":
+                        self.filled_entry_price = None
+                        self.filled_qty = None
+                        self.filled_rsi = None
+        elif self.position == "LONG":
                 curr_pnl = (self.ob_cache.bids - self.filled_entry_price)/self.filled_entry_price
-                self.cummulated_price_delta += self.order_flow_cache.price_delta
+                #self.cummulated_price_delta += self.order_flow_cache.price_delta
                 take_profit_condition = (
-                    curr_pnl > 0.00025 and
-                    self.rsi_buffer[-1] - self.filled_rsi > rsi_std and
-                    self.order_flow_cache.normalized_net_flow != 1
+                    curr_pnl > pnl_threshold and
+                    self.rsi_buffer[-1] - self.filled_rsi > self.overbrought_threshold and
+                    self.order_flow_cache.normalized_net_flow < 0
                 )
                 if take_profit_condition:
                     print("********exit*******")
@@ -202,6 +192,7 @@ class TakeProfit(MarketDataStreamer):
                                 self.position = None
                                 self.filled_entry_price = None
                                 self.filled_qty = None
+                                self.filled_rsi = None
                                 
                             else:
                                 print("position is not cleared in full.")
