@@ -15,24 +15,21 @@ def configure_logging():
     logging.getLogger().addHandler(console_handler)
 
 
+
 '''
 
-elif self.ob_cache.bids - self.filled_entry_price < -(self.filled_entry_price*0.0005):
-                    self._sell_order["quantity"] = self.filled_qty
-                    self._sell_order['timestamp'] = int(time.time()*1000)
-                    try:
-                        sell_order_response = self.api_client.submit_orders(self._sell_order) 
-                        sell_order_id = sell_order_response['orderId']
-                        sell_order_status =  self.api_client.order_status(orderId = sell_order_id)
-                        if sell_order_status['status'] in ['FILLED', 'PARTIALLY_FILLED']:
-                            filled_sell_qty = float(sell_order_status['executedQty'])
-                            filled_sell_price = float(sell_order_status['cummulativeQuoteQty'])/filled_sell_qty
-                            if filled_sell_qty == self.filled_qty:
-                                print(f"stop loss order exec: loss: {filled_sell_price*self.filled_qty - 10.0}, entry: {self.filled_entry_price}, exit: {filled_sell_price}")
-                        self.position = None
-                        self.filled_entry_price = 0.0
-                        self.filled_qty = 0.0
-                    except Exception as e:
-                        logging.error(f"stop loss order exec failed on exception: {e}.")
+ #kline slope 
+                            if self.prev_window_start is None:
+                                self.prev_window_start = self.kline_cache.window_start
+                                self.price_buffer.append(self.kline_cache.closing_price)
+                            else:
+                                if self.prev_window_start == self.kline_cache.window_start:
+                                    self.price_buffer.append(self.kline_cache.closing_price)
+                                else:
+                                    self.price_buffer = [self.kline_cache.closing_price]
+                                    self.prev_window_start = self.kline_cache.window_start
+                            self.kline_slope = calculate_slope(self.price_buffer)
+                            print(f"{self.kline_cache.window_start}, slope: {self.kline_slope} rsi: {self.rsi_value}, asks: {self.ob_cache.asks}, bids:{self.ob_cache.bids},close: {self.kline_cache.closing_price},price_delta:{self.order_flow_cache.price_delta}, net flow: {self.order_flow_cache.normalized_net_flow}")
+                        #order_flow
 
 '''

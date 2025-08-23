@@ -48,15 +48,19 @@ class Exchange:
         self.available_kline_intervals = config['available_kline_intervals']
 @dataclass
 class OrderBookCache:
-    __slots__ = ['bids', 'asks', 'last_update']
+    __slots__ = ['bids', 'asks', 'last_update', 'bids_qty', 'asks_qty']
     def __init__(self):
         self.bids =  0.0
         self.asks =  0.0
         self.last_update =  0.0 
-    def update(self, bid: float, ask: float):
-        self.bids = float(bid)
-        self.asks = float(ask)
+        self.bids_qty = 0.0
+        self.asks_qty = 0.0
+    def update(self, bids: float, asks: float, bids_qty: float, asks_qty: float):
+        self.bids = float(bids)
+        self.asks = float(asks)
         self.last_update = int(time.time()*1000)
+        self.bids_qty = bids_qty
+        self.asks_qty = asks_qty
     def is_thin(self) -> bool:
         return (self.asks - self.bids) > (self.asks * 0.005) 
 @dataclass
