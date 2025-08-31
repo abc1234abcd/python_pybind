@@ -43,7 +43,7 @@ class TakeProfit(MarketDataStreamer):
         #pre-allocate buy/sell order
         self.filled_entry_price = 0.0
         self.filled_qty = 0.0
-        self.max_position = "10" 
+        self.max_position = "9" 
         self._buy_order = {
             "quoteOrderQty":  self.max_position,  
             "side": OrderSide.BUY.value,
@@ -129,13 +129,16 @@ class TakeProfit(MarketDataStreamer):
             return
 
         if self.position is None :
-            entry_position =(
+            entry_position_rsi =(
               self.rsi_buffer[-2] < self.oversold_threshold and
               self.rsi_buffer[-1] < self.oversold_threshold and
               self.rsi_buffer[-1] >self.rsi_buffer[-2] and
               self.order_flow_cache.normalized_net_flow != -1 
+            ) 
+            entry_position_strong_signal = (
+                
             )
-            if entry_position:
+            if any[entry_position_rsi, entry_position_strong_signal]:
                 print("****************entry*****************")
                 print(f"buy sigal: prev rsi: {self.rsi_buffer[-2]},  curr rsi: {self.rsi_value},normalized flow: {self.order_flow_cache.normalized_net_flow}, price delta: {self.order_flow_cache.price_delta}")
                 self._buy_order['timestamp'] = str(int(time.time() * 1000))

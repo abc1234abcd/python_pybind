@@ -136,16 +136,16 @@ class TakeProfit(MarketDataStreamer):
         self.prev_kline_slope = curr_kline_slope
         print(f"rsi: {self.rsi_value}, slope:{curr_kline_slope}, slope delta:{self.kline_slope_delta}, closing: {self.kline_cache.closing_price}, bid/ask: {self.ob_cache.bids_qty/self.ob_cache.asks_qty}, net flwo:{self.order_flow_cache.normalized_net_flow}")
 
-        upward_treding = (self.kline_slope_delta >= 0 and self.order_flow_cache.normalized_net_flow >=0  and self.ob_cache.bids_qty/self.ob_cache.asks_qty >= 1) or(curr_kline_slope > 0 and self.kline_slope_delta >0 and self.order_flow_cache.normalized_net_flow != -1)
+        upward_treding = (curr_kline_slope > -0.001 and self.kline_slope_delta >0 and self.order_flow_cache.normalized_net_flow != -1)
+        downward_trending = (curr_kline_slope < 0 and self.kline_slope_delta <=0)
         strong_upward = (curr_kline_slope > 0.01 )
         strong_dropping = (curr_kline_slope < -0.01)
 
         if self.position is None and self.prev_kline_slope is not None and curr_kline_slope:
             entry_position =(
-              upward_treding and
-              not strong_dropping and 
-              self.rsi_value < 60 
-            )
+              #upward_treding and
+              self.order_flow_cache.normalized_net_flow > -1 and 
+              self.rsi_value < 30 )
             if entry_position:
                 print("****************entry*****************")
                 print(self.prev_kline_slope, curr_kline_slope, self.rsi_value, self.ob_cache.bids_qty/self.ob_cache.asks_qty)
@@ -183,7 +183,7 @@ class TakeProfit(MarketDataStreamer):
                 curr_pnl = (self.ob_cache.bids- self.filled_entry_price)/self.filled_entry_price
                 holding_time = (time.time_ns() - self.enter_timing)/1e9
                 take_profit_condition = (
-                    (curr_pnl > 0.0001 and not strong_upward))
+                    curr_pnl > 0.0001 and not strong_upward)
                 if take_profit_condition:
                     print("********exit*******")
                     self._sell_order["quantity"] = str(self.filled_qty)

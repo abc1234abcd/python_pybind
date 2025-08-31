@@ -3,7 +3,7 @@ import logging
 import hmac
 import time
 import urllib.parse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from decimal import Decimal
 from hashlib import sha256
 from utils.security import SecurityManager
@@ -193,4 +193,20 @@ class MexcApiClient:
             return response.json()
         except Exception as e:
             logging.error(f"get exchange info failed on exception: {e}.")
+    
+    def get_hist_kline(self, symbol: str, interval: str) ->List:
+        url_path ='/api/v3/klines'
+        try:
+            headers = self.headers
+            params = {
+                "symbol": symbol.upper(),
+                "timestamp": str(int(time.time()*1000)),
+                "interval": interval
+            }
+            totalParams = self._sign_message(params = params)
+            req = requests.Request("GET", self.api_base_url + url_path, params = params).prepare()
+            response = self.session.send(req, timeout=self.timeout)
+            return response.json()
+        except Exception as e:
+            logging.error(f"get historical kline failed on exception: {e}.")
 
