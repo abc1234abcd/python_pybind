@@ -151,7 +151,7 @@ class MexcApiClient:
         url_path = "/api/v3/order"
         try:
             headers= self.headers
-            params = {'orderId': orderId, 'symbol': 'SOLUSDT', 'timestamp': str(int(time.time()*1000))}
+            params = {'orderId': orderId, 'symbol': 'XRPUSDT', 'timestamp': str(int(time.time()*1000))}
             totalParams = self._sign_message(params = params)
             req = requests.Request('GET', self.api_base_url + url_path, headers = headers, params = totalParams).prepare()
             response = self.session.send(req, timeout = self.timeout)

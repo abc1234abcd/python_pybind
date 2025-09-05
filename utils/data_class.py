@@ -47,7 +47,7 @@ class Exchange:
         self.private_socket_url_template = config['private_socket_url']
         self.available_kline_intervals = config['available_kline_intervals']
 @dataclass
-class OrderBookCache:
+class OrderBook:
     __slots__ = ['bids', 'asks', 'last_update', 'bids_qty', 'asks_qty']
     def __init__(self):
         self.bids =  0.0
@@ -64,7 +64,7 @@ class OrderBookCache:
     def is_thin(self) -> bool:
         return (self.asks - self.bids) > (self.asks * 0.005) 
 @dataclass
-class KlineCache:
+class Kline:
     __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start']
     def __init__(self):
         self.closing_price = 0.0
@@ -79,7 +79,7 @@ class KlineCache:
         self.opening_price = float(opening_price)
         self.window_start = int(window_start)
 @dataclass
-class OrderFlowCache:
+class OrderFlow:
     __slots__ = ['bid_volume', 'ask_volume', 'net_flow', 'price_delta', 'normalized_net_flow' ]
     def __init__(self):
         self.bid_volume = 0.0
