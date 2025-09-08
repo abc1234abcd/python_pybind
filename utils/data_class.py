@@ -65,19 +65,21 @@ class OrderBook:
         return (self.asks - self.bids) > (self.asks * 0.005) 
 @dataclass
 class Kline:
-    __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start']
+    __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start','volume']
     def __init__(self):
         self.closing_price = 0.0
         self.highest_price = 0.0
         self.lowest_price = 0.0
         self.opening_price = 0.0
         self.window_start = 0.0
-    def update(self, closing_price: float, hightest_price: float, lowest_price: float, opening_price: float, window_start: int):
+        self.volume = 0.0
+    def update(self, closing_price: float, hightest_price: float, lowest_price: float, opening_price: float, window_start: int, volume: float):
         self.closing_price = float(closing_price)
         self.highest_price = float(hightest_price)
         self.lowest_price = float(lowest_price)
         self.opening_price = float(opening_price)
         self.window_start = int(window_start)
+        self.volume = float(volume)
 @dataclass
 class OrderFlow:
     __slots__ = ['bid_volume', 'ask_volume', 'net_flow', 'price_delta', 'normalized_net_flow' ]
