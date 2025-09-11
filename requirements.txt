@@ -1,18 +1,27 @@
+aiohappyeyeballs==2.6.1
+aiohttp==3.12.15
+aiosignal==1.4.0
 asyncio==3.4.3
--e git+https://github.com/abc1234abcd/bot.git@5b1fc340753816ae9927316364d953c8cb5f9416#egg=bot
+attrs==25.3.0
+-e git+https://github.com/abc1234abcd/bot.git@6fc6a33d708447e7adc3237430f8abddc739007a#egg=bot
 certifi==2025.7.14
 cffi==1.17.1
 charset-normalizer==3.4.2
 cryptography==45.0.5
 Cython==3.1.2
+frozenlist==1.7.0
 idna==3.10
 llvmlite==0.44.0
+-e git+https://github.com/abc1234abcd/bot.git@6fc6a33d708447e7adc3237430f8abddc739007a#egg=mexc_api_client
+multidict==6.6.4
 numba==0.61.2
 numpy==2.2.6
 pandas==2.3.1
+propcache==0.3.2
 protobuf==6.31.1
 pybind11==3.0.0
 pycparser==2.22
+pycurl==7.45.6
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 pytz==2025.2
@@ -23,3 +32,4 @@ six==1.17.0
 tzdata==2025.2
 urllib3==2.5.0
 websockets==15.0.1
+yarl==1.20.1

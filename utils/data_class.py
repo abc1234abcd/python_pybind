@@ -62,7 +62,11 @@ class OrderBook:
         self.bids_qty = bids_qty
         self.asks_qty = asks_qty
     def is_thin(self) -> bool:
-        return (self.asks - self.bids) > (self.asks * 0.005) 
+        return (self.asks - self.bids) > 0.0008 
+    def is_stable(self) ->bool:
+        return (self.asks - self.bids) <= 0.0002
+
+
 @dataclass
 class Kline:
     __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start','volume']

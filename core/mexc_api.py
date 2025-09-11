@@ -10,6 +10,7 @@ from utils.security import SecurityManager
 from utils.data_class import OrderSide, OrderType
 from dotenv import dotenv_values
 from pathlib import Path
+import aiohttp
 
 
 class MexcApiClient:
