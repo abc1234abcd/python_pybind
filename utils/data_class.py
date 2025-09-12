@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, List
 from enum import Enum
 from utils.config_loader import ExchangeConfigLoader
 import time
+import numpy as np
 
 class MarketData(Enum):
     TRADES= 'trades'
@@ -47,7 +48,7 @@ class Exchange:
         self.private_socket_url_template = config['private_socket_url']
         self.available_kline_intervals = config['available_kline_intervals']
 @dataclass
-class OrderBook:
+class BookTicker:
     __slots__ = ['bids', 'asks', 'last_update', 'bids_qty', 'asks_qty']
     def __init__(self):
         self.bids =  0.0
@@ -61,12 +62,15 @@ class OrderBook:
         self.last_update = int(time.time()*1000)
         self.bids_qty = bids_qty
         self.asks_qty = asks_qty
+    @property
     def is_thin(self) -> bool:
-        return (self.asks - self.bids) > 0.0008 
+        return (self.asks - self.bids) > 0.0005 
+    @property
     def is_stable(self) ->bool:
-        return (self.asks - self.bids) <= 0.0002
-
-
+        return (self.asks - self.bids) <= 0.0001
+    @property
+    def vwap(self)->float:
+        return (self.bids*self.asks_qty + self.asks*self.bids_qty)/(self.asks_qty + self.bids_qty)
 @dataclass
 class Kline:
     __slots__ = ['closing_price', 'highest_price', 'lowest_price', 'opening_price', 'window_start','volume']
@@ -99,4 +103,17 @@ class OrderFlow:
         self.net_flow = float(net_flow)
         self.price_delta = float(price_delta)
         self.normalized_net_flow = float(normalized_net_flow)
-
+@dataclass
+class LimitDepthsOB:
+    __slots__=['bids','asks']
+    def __init__(self):
+        self.asks = np.zeros((20,2), dtype =np.float64)
+        self.bids = np.zeros((20,2), dtype = np.float64)
+    def update(self, asks: List[List[float]], bids:List[List[float]]):
+        self.asks = np.array([[float(item.price()), float(item.quantity())] for item in asks])
+        self.bids = np.array([[float(item.price()), float(item.quantity())] for item in bids])
+    @property
+    def book_buy_pressure(self) -> float:
+        total_bids_qty = np.sum(self.bids[:,1])
+        total_asks_qty = np.sum(self.asks[:,1])
+        return (total_bids_qty - total_asks_qty)/(total_bids_qty + total_asks_qty)

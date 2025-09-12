@@ -6,12 +6,11 @@ from typing import List
 from pathlib import Path
 from dotenv import dotenv_values
 from utils.security import SecurityManager
-from utils.data_class import OrderSide, OrderType, Kline, OrderBook, OrderFlow
+from utils.data_class import OrderSide, OrderType, Kline, BookTicker, OrderFlow, LimitDepthsOB
 from core.market_data_streamer import MarketDataStreamer
 from core.mexc_api import MexcApiClient
 #from numba import njit: consumes too much cache, and re-compile consumes way too much time 
 import copy
-
 #C++ extention
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 from rsi_calculator import RSICalculator
@@ -50,15 +49,15 @@ class TakeProfit(MarketDataStreamer):
         super().__init__(exchange, topics)
         self.api_client = api_client
         self.msg_parser = PushDataV3ApiWrapper()
-        self.rsi_calculator = RSICalculator(14)
+        self.rsi_calculator = RSICalculator(28)
         self.kline = Kline()
-        self.ob = OrderBook()
+        self.ob_ticker = BookTicker()
         self.order_flow = OrderFlow()
+        self.limit_depths_ob = LimitDepthsOB()
         self._hist_kline_handler()
-        #buffers
+        #buffers: price buffer saves all closing price as the same time interval of kline, rsi_buffer length is determined by rsi_calculator window size.
         self.price_buffer =[]
-        self.rsi_buffer = np.full(14, np.nan)
-
+        self.rsi_buffer = np.full(28, np.nan)
         #pre-allocate buy/sell order
         self.filled_entry_price = 0.0
         self.filled_qty = 0.0
@@ -77,27 +76,30 @@ class TakeProfit(MarketDataStreamer):
             "timestamp": None,  
             "type": OrderType.MARKET.value
         }
-
         #strategy based variables
-        self.oversold_threshold = None
-        self.overbrought_threshold = None
-        self.position = None
+        self.position = None 
+        #rsi signals
         self.rsi_value = 0.0
         self.rsi_mean = 0.0
         self.rsi_std = 0.0
         self.rsi_momentum = 0.0
+        self.oversold_threshold = None
+        self.overbrought_threshold = None
+        #beta
         self.prev_kline_slope = None
         self.curr_kline_slope = None
         self.kline_slope_momentum = 0.0
+        #entry setups
         self.prev_exit_price = None
         self.prev_exit_time = None
-        self.avg_low = None
+        #hammer and shooting star
         self.upper_wick_pct = 0.0
         self.lower_wick_pct = 0.0
         self.body_pct = 0.0
+        #magnitute of price fluctuation with one kline
         self.curr_true_range = 0.0
-
-
+        #20 level ob depths buy pressure
+        self.book_buy_pressure = 0.0
         #latency control notification
         self.last_latency = 0        
         
@@ -107,10 +109,10 @@ class TakeProfit(MarketDataStreamer):
         #true range buffer record true range at 1 minute interval
         self.true_range_buffer = np.full(14, np.nan)
         #hist kline 
+        self.kline = Kline()
         hist_kline = self.api_client.get_hist_kline(symbol = "XRPUSDT", interval = "1m")[-16:]
         #support level is the min kline.lowest in the past 14 minutes
         self.support_level = min(item[3] for item in hist_kline[-16:-1])
-       
         self.kline = Kline()
         #curr kline is -1, prev kline is 
         self.prev_kline = Kline()
@@ -128,6 +130,8 @@ class TakeProfit(MarketDataStreamer):
             if all(item != 0 for item in self.true_range_buffer):
                 self.avg_true_range = np.mean(self.true_range_buffer)
         self.kline_min14_slope = calculate_slope([item.closing_price for item in self.kline_buffer])
+        self.resist_level= max([item.highest_price for item in self.kline_buffer])
+        self.support_level = min([item.lowest_price for item in self.kline_buffer])
 
     async def _message_handler(self):  
             while self._is_active and self.ws:
@@ -136,10 +140,10 @@ class TakeProfit(MarketDataStreamer):
                     msg = await self.ws.recv()                
                     if isinstance(msg, bytes):
                         if self.msg_parser.parse(msg):
-                            #ob 
+                            #ob_ticker
                             if self.msg_parser.has_book_ticker():
                                 book = self.msg_parser.book_ticker()
-                                self.ob.update(
+                                self.ob_ticker.update(
                                     bids=float(book.bid_price()),
                                     asks=float(book.ask_price()),
                                     bids_qty = float(book.bid_quantity()),
@@ -149,7 +153,7 @@ class TakeProfit(MarketDataStreamer):
                             if self.msg_parser.has_kline():
                                 kline = self.msg_parser.kline()
                                 self.kline.update(kline.closing_price(), kline.highest_price(), kline.lowest_price(), kline.opening_price(), kline.window_start(), kline.volume())
-                                #ris, ris_mean, rsi_std
+                                #ris
                                 self.rsi_value = self.rsi_calculator.update(self.kline.closing_price)
                                 self.rsi_buffer = np.roll(self.rsi_buffer, -1)
                                 self.rsi_buffer[-1] = copy.deepcopy(self.rsi_value)
@@ -172,6 +176,7 @@ class TakeProfit(MarketDataStreamer):
                                     #update with rolling
                                     self.kline_buffer = np.roll(self.kline_buffer, -1)
                                     self.kline_buffer[-1] = copy.deepcopy(curr_kline)
+                                    #renew self.price_buffer
                                     self.price_buffer = [curr_kline.closing_price]
                                     prev_high_range = abs(self.kline_buffer[-2].highest_price - curr_kline.closing_price)
                                     prev_low_range = abs(self.kline_buffer[-2].lowest_price - curr_kline.closing_price)
@@ -182,13 +187,13 @@ class TakeProfit(MarketDataStreamer):
                                 self.prev_kline = copy.deepcopy(curr_kline)
                                 self.support_level = min(element.lowest_price for element in self.kline_buffer)
                                 self.kline_min14_slope = calculate_slope([item.lowest_price for item in self.kline_buffer])
+                                self.support_level = min([item.lowest_price for item in self.kline_buffer])
+                                self.resist_level = max([item.highest_price for item in self.kline_buffer])
                                 self.kline_slope = calculate_slope(self.price_buffer)
                             if self.msg_parser.has_public_limit_depths():
-                                limit_depth_ob = self.msg_parser.limit_depths()
-                                total_bids_qty = sum([float(item.quantity()) for item in limit_depth_ob.bids()])
-                                total_asks_qty = sum([float(item.quantity()) for item in limit_depth_ob.asks()])
-                                total_ob = total_bids_qty+total_asks_qty
-                                print(total_bids_qty/total_ob,total_asks_qty/total_ob)
+                                temp_limit_depths_ob = self.msg_parser.limit_depths()
+                                self.limit_depths_ob.update(temp_limit_depths_ob.bids(), temp_limit_depths_ob.asks())
+                                self.book_buy_pressure = self.limit_depths_ob.book_buy_pressure
                             #order flows
                             if self.msg_parser.has_public_aggredeals():
                                     trades = self.msg_parser.trades()
@@ -196,9 +201,8 @@ class TakeProfit(MarketDataStreamer):
                                         order_flow= compute_order_flow(trades.deals())
                                         self.order_flow.update(order_flow.bid_volume, order_flow.ask_volume, order_flow.net_flow, order_flow.price_delta, order_flow.normalized_net_flow)
                             if self.rsi_std != 0 and all(item is not None for item in [self.kline_slope, self.avg_true_range, self.support_level, self.rsi_buffer]) and all(item != 0 for item in self.rsi_buffer):
-                                print(f"(price:{curr_kline.closing_price}, curr slope:{self.kline_slope}, curr_beta: {(self.kline_slope>self.kline_min14_slope)},rsi: {self.rsi_value - self.rsi_mean}, order flow:{self.order_flow.normalized_net_flow}, avg true range: {self.avg_true_range}, curr tr: {self.curr_true_range}")
+                                print(f"(price:{curr_kline.closing_price}, curr slope:{self.kline_slope},rsi: {self.rsi_value, self.rsi_mean}, buy pressure:{self.book_buy_pressure}, {self.resist_level, self.support_level}")
                                 await self._execute_strategy()
-                                
                         else:
                             logging.error(f"parse protobuf msg {self.msg_parser} failed.")
                     else:
@@ -210,8 +214,8 @@ class TakeProfit(MarketDataStreamer):
     async def _execute_strategy(self):
         #latency control
         start_ns = time.time_ns()
-        # micro-structure filter: ob.asks - ob.bids > 0.0008, ob.is_stable <= 0.0002
-        if self.ob.is_thin():
+        # micro-structure filter: ob.asks - ob.bids > 0.0005, ob.is_stable <= 0.0001
+        if self.ob_ticker.is_thin:
             return        
         #self.kline_slope_momentum: 
         curr_kline_slope = copy.deepcopy(self.kline_slope)
@@ -230,42 +234,44 @@ class TakeProfit(MarketDataStreamer):
             self.take_profit_threshold = 0.001
         else:
             self.take_profit_threshold = 0.0005
-
         #define strong momentumn: 
         curr_kline = copy.deepcopy(self.kline)
         slope_ratio = self.kline_slope/abs(self.kline_min14_slope)
-        avg_scale = self.avg_true_range/curr_kline.closing_price
         self.is_strong_upward = False
         self.is_strong_dropping = False
-        if slope_ratio >= 1 or self.kline_slope >= avg_scale or curr_kline.highest_price == curr_kline.closing_price:
+        if slope_ratio >= 1  or curr_kline.highest_price == curr_kline.closing_price or self.book_buy_pressure > 0.75:
             self.is_strong_upward = True
-        elif slope_ratio <= -1 or self.kline_slope <= -avg_scale or curr_kline.lowest_price == curr_kline.closing_price:
+        elif slope_ratio <= -1 or curr_kline.lowest_price == curr_kline.closing_price or self.book_buy_pressure < -0.75:
             self.is_strong_dropping = True
-        print(self.is_strong_dropping, self.is_strong_upward)
-
-        if self.prev_kline.window_start == curr_kline.window_start:
-            curr_time_ms = int(time.time()*1000)
-            window_end_time_ms = curr_kline.window_start*1000 + 60000
-            time_left = window_end_time_ms - curr_time_ms
-        else:
-            time_left = 0
-
+        #entry    
+        strong_entry_condition = (self.rsi_momentum>0 and self.ob_ticker.asks < self.resist_level - 0.0015)
+        weak_entry_condition = (self.rsi_momentum>0 and self.ob_ticker.asks < self.resist_level -0.003 and curr_kline.closing_price>curr_kline.opening_price)
         if self.position is None:
-            if self.prev_exit_price is None:
-                entry_position =(
-                self.rsi_momentum > 0 and
-                curr_kline.closing_price > curr_kline.opening_price
-                ) 
-            elif self.prev_exit_price is not None:
-                same_window = ((self.prev_exit_time//60000) == (int(time.time()*1000)//60000))
+            if self.prev_exit_time is None:
+                if self.is_strong_upward:
+                    entry_condition = strong_entry_condition
+                elif not self.is_strong_upward:
+                    entry_condition = weak_entry_condition
+            elif self.prev_exit_time:
+                curr_time = int(time.time()*1000)
+                same_window = (curr_time//60000 == self.prev_exit_time//60000)
                 if same_window:
-                    entry_position = False 
+                    if self.is_strong_upward:
+                        entry_condition = (
+                           strong_entry_condition and
+                           self.ob_ticker.asks < self.prev_exit_price
+                        )
+                    elif not self.is_strong_upward:
+                        entry_condition = (
+                        weak_entry_condition and 
+                        self.ob_ticker.asks < self.prev_exit_price
+                        )
                 else:
-                    entry_position =(
-                    self.rsi_momentum > 0 and
-                    curr_kline.closing_price > curr_kline.opening_price
-                    )
-            if entry_position:
+                    if self.is_strong_upward:
+                        entry_condition = strong_entry_condition
+                    elif not self.is_strong_upward:
+                        entry_condition = weak_entry_condition
+            if entry_condition:
                 self._buy_order['timestamp'] = str(int(time.time() * 1000))
                 # exec order
                 buy_order_response= self.api_client.submit_orders(params = self._buy_order)
@@ -285,10 +291,10 @@ class TakeProfit(MarketDataStreamer):
                     print("order exec failed.")
                     cancel_order = self.api_client.cancel_order(symbol = 'XRPUSDT', orderId = buy_order_id)
                     if cancel_order['status'] == 'CANCELED':
-                        await self._reset_position()
-          
+                        await self._reset_position()         
         elif self.position == "LONG":
-                curr_pnl = self.ob.bids - self.filled_entry_price
+                curr_pnl = self.ob_ticker.bids - self.filled_entry_price
+                print(f"curr pnl:{curr_pnl}")
                 if self.is_strong_upward:
                     take_profit_condition = (
                         curr_pnl > 0.001 and
@@ -326,20 +332,17 @@ class TakeProfit(MarketDataStreamer):
         self.last_latency = (time.time_ns() - start_ns) / 1e6
         if self.last_latency > 2.0:  # 2ms threshold
             logging.warning(f"Slow execution: {self.last_latency:.2f}ms")  
-
     async def _reset_position(self):
         self.position = None
         self.filled_entry_price = 0.0
         self.filled_qty = 0.0
         self.filled_rsi = 0.0
-         
 async def main(exchange: str, api_key: SecurityManager, api_secret: SecurityManager, topics: List[dict]):
     mexc_api_client = MexcApiClient(api_key = api_key, api_secret=api_secret)
     xrp_take_profit_instance = TakeProfit(exchange = exchange, topics = topics, api_client = mexc_api_client)
     await asyncio.gather(
         xrp_take_profit_instance.connect(),
     )
-
 if __name__=='__main__':
     exchange = 'mexc'
     symbol = "XRPUSDT"
