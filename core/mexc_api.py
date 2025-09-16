@@ -4,14 +4,8 @@ import hmac
 import time
 import urllib.parse
 from typing import Dict, Any, Optional, List
-from decimal import Decimal
 from hashlib import sha256
 from utils.security import SecurityManager
-from utils.data_class import OrderSide, OrderType
-from dotenv import dotenv_values
-from pathlib import Path
-import aiohttp
-
 
 class MexcApiClient:
     def __init__(self, api_key: SecurityManager, api_secret: SecurityManager, timeout: tuple =(1, 2), pool_config: dict = None):
@@ -32,8 +26,6 @@ class MexcApiClient:
         self.session = requests.Session()
         self.session.mount('https://', adapter)
         self.session.headers = None
-
-
     @property
     def headers(self):
         if not hasattr(self.session, 'headers') or not self.session.headers:
@@ -52,15 +44,13 @@ class MexcApiClient:
         with self.api_secret.get_secret().get() as secret:
             totalParams['signature'] = hmac.new(secret.encode('utf-8'), query_string.encode('utf-8'), sha256).hexdigest()
         return totalParams
-    
     def generate_listen_key(self) -> SecurityManager:
         url_path = "/api/v3/userDataStream"
-        totalParams = self._sign_message(params = {})
+        totalParams = self._sign_message(params = {'timestamp': str(int(time.time()*1000))})
         try: 
             headers = self.headers
             request = requests.Request('POST', self.api_base_url+url_path, headers = headers, params = totalParams).prepare()
             response = self.session.send(request, timeout = self.timeout)
-            response.raise_for_status()
             return SecurityManager(response.json()['listenKey'])
         except Exception as e:
             logging.error(f"mexc generate listen key failed on exception: {e}.")
@@ -198,13 +188,11 @@ class MexcApiClient:
     def get_hist_kline(self, symbol: str, interval: str) ->List:
         url_path ='/api/v3/klines'
         try:
-            headers = self.headers
             params = {
                 "symbol": symbol.upper(),
                 "timestamp": str(int(time.time()*1000)),
                 "interval": interval
             }
-            totalParams = self._sign_message(params = params)
             req = requests.Request("GET", self.api_base_url + url_path, params = params).prepare()
             response = self.session.send(req, timeout=self.timeout)
             return response.json()
