@@ -231,7 +231,7 @@ class AioMexcApiClient:
         except Exception as e:
             logging.error(f"get historical kline failed on exception: {e}.")
             raise
-
+'''
 if __name__=='__main__':
     async def run_client():
         api_key = SecurityManager(dotenv_values(Path(__file__).parent.parent/".env")[f"MEXC_API_KEY"])
@@ -266,3 +266,4 @@ if __name__=='__main__':
             await mexcapiclient_instance.close_session()
 
 asyncio.run(run_client())
+'''

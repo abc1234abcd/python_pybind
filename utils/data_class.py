@@ -64,7 +64,7 @@ class BookTicker:
         self.asks_qty = asks_qty
     @property
     def is_thin(self) -> bool:
-        return (self.asks - self.bids) > 0.0005 
+        return (self.asks - self.bids) > 0.001
     @property
     def is_stable(self) ->bool:
         return (self.asks - self.bids) <= 0.0001
