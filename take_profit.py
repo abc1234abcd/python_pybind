@@ -41,7 +41,8 @@ what on earth decides the price movement?
 
 5. candle shooting star: a. (high - max(open, close))/(high - low)> 0.7 (long upper wick) b. abs(open - close) /(high - low) < 0.3 (small body) c. (min(open, close) - low)/(high - low) < 0.1 (small lower wick).
 
-1. fix my exit policy.
+rsi_list =[]
+entry, then rsi_list.append(rsi) exit: if rsi delta > 0 , append new rsi to rsi list, other wise, rsi list.pop(), if len(rsi list) <= 1, exit = true, else rsi > 70, exit = true.
 
 '''
 
@@ -61,7 +62,7 @@ class TakeProfit(MarketDataStreamer):
         #pre-allocate buy/sell order
         self.filled_entry_price = 0.0
         self.filled_qty = 0.0
-        self.max_position = "160" 
+        self.max_position = "130" 
         self._buy_order = {
             "quoteOrderQty":  self.max_position,  
             "side": OrderSide.BUY.value,
@@ -197,7 +198,7 @@ class TakeProfit(MarketDataStreamer):
                                         order_flow= compute_order_flow(trades.deals())
                                         self.order_flow.update(order_flow.bid_volume, order_flow.ask_volume, order_flow.net_flow, order_flow.price_delta, order_flow.normalized_net_flow)
                             if all(item != 0 for item in self.rsi_buffer) and all([item is not None for item in [self.kline_slope, self.kline_min14_slope, self.rsi_mean]]):
-                                print(self.book_buy_pressure, self.rsi_value, self.kline.closing_price, self.ob_ticker.asks, [self.resist_level, self.support_level], )
+                                print(self.book_buy_pressure, self.rsi_value, self.kline.closing_price, self.ob_ticker.asks, self.ob_ticker.bids, [self.resist_level, self.support_level], [self.kline_min14_slope, self.kline_slope] )
                                 await self._execute_strategy()
                         else:
                             logging.error(f"parse protobuf msg {self.msg_parser} failed.")

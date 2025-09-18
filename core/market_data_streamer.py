@@ -63,7 +63,7 @@ class MarketDataStreamer(ABC):
         self._is_active = False
         if hasattr(self, 'ws') and self.ws:
             try:
-                if not self.ws.closed:
+                if not hasattr(self.ws, 'closed'):
                     await self.ws.close(code=1000)
                 logging.info(f"{self.exchange.name} websocket closed safely.")
             except Exception as e:
