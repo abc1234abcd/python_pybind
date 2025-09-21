@@ -23,4 +23,20 @@ sequence of random variables
 
 stochastic process
 
-collection of random variables indexed by time, either discrete or continuous
+collection of random variables indexed by time, either discrete or continuous. 
+
+
+discrete:
+1.  a. discrete simple random walk: expectation of any point is 0; take all data that has the same time interval, the distribution of all these data subsets are identical(distribution is 
+irrelevant to their starting points); if the starting point are not overlapping, these data subsets are independent;
+    b. symmetry probability. eg. end up with +100, -100 has equal probability of 1/2. --> extended case: A/(A+B), B/(A+B)
+    c. with infinite large t, the discrete simple random walk is a normal distribution of (0, t)
+
+2. markov chain. egenvalue and egenvector. the future value only depends the present value, which has nothing to do with historical data. 
+
+3. martingale. the expectation value of the future value equals to the present value. aka. fair game, option stopping. 
+classical martingale case: y = 2 with prob 1/3, y = 1/2 with prob 2/3, x = sum product of all prev y, y is i.i.d.  x_0 = 0, x is a martingale. 
+martingale P([x_0 = 0]) = 1.
+
+continuous:
+1. 

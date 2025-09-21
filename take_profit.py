@@ -108,7 +108,11 @@ class TakeProfit(MarketDataStreamer):
         self.true_range_buffer = np.full(14, np.nan)
         #hist kline 
         hist_kline_data = await self.api_client.get_hist_kline(symbol = "XRPUSDT", interval = "1m")
+        daily_kline_data = await self.api_client .get_hist_kline(symbol = "XRPUSDT", interval = "Day1")
         hist_kline = hist_kline_data[-16:]
+        daily_kline = daily_kline_data[-1]
+        self.daily_high = daily_kline[2]
+        self.daily_low = daily_kline[3]
         #support level is the min kline.lowest in the past 14 minutes
         self.support_level = min(item[3] for item in hist_kline[-16:-1])
         #curr kline is -1, prev kline is 
@@ -366,7 +370,7 @@ async def main(exchange: str, api_key: SecurityManager, api_secret: SecurityMana
 if __name__=='__main__':
     exchange = 'mexc'
     symbol = "XRPUSDT"
-    ob_depth_level = 20
+    ob_depth_level = 10. #available level: 5, 10, 20
     timeout = tuple((6, 2))
     topics = [{"method": "SUBSCRIPTION", "params":[f"spot@public.aggre.bookTicker.v3.api.pb@100ms@{symbol}", f"spot@public.kline.v3.api.pb@{symbol}@Min1", f"spot@public.aggre.deals.v3.api.pb@100ms@{symbol}", f"spot@public.limit.depth.v3.api.pb@{symbol}@{ob_depth_level}"]}]
     api_key = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_API_KEY"])
