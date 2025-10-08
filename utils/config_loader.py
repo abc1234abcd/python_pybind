@@ -18,3 +18,4 @@ class ExchangeConfigLoader:
                 return exchanges_config['exchanges'][exchange]
         except yaml.YAMLError as e:
             logging.error(f"Configuration file is not valid: {str(e)}.") 
+

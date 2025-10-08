@@ -224,19 +224,34 @@ class AioMexcApiClient:
         params = {
             "symbol": symbol.upper(),
             "timestamp": str(int(time.time() * 1000)),
-            "interval": interval
+            "interval": interval,
+            "limit": 1000
         }
         try:
             return await self._make_request('GET', url_path, params=params)
         except Exception as e:
             logging.error(f"get historical kline failed on exception: {e}.")
             raise
+
+    async def get_daily_price_stats(self, symbols: List[str]) -> dict:
+        url_path = "/api/v3/ticker/24hr"
+        params ={
+            "symbol": [symbol.upper() for symbol in symbols]
+        }
+        try: 
+            return await self._make_request('GET', url_path, params = params)
+        except Exception as e:
+            logging.error(f"get daily price statistcis for symbols {symbols} failed on exception: {e}.")
+            raise
+
+
+
 '''
 if __name__=='__main__':
     async def run_client():
         api_key = SecurityManager(dotenv_values(Path(__file__).parent.parent/".env")[f"MEXC_API_KEY"])
         api_secret = SecurityManager(dotenv_values(Path(__file__).parent.parent/".env")[f"MEXC_SECRET"])
-        symbol = "XRPUSDT"
+        symbols = ["XRPUSDT"]
         interval = '1m'
         buy_order = {
             "quoteOrderQty":  "1",  
@@ -254,7 +269,7 @@ if __name__=='__main__':
             # Create session manually
             await mexcapiclient_instance.create_session()
             # Use await for the async method
-            return_data = await mexcapiclient_instance.order_status(orderId = "C02__596646700169351168099")
+            return_data = await mexcapiclient_instance.get_daily_price_stats(symbols = symbols)
             print(f"aio Kline data: {return_data}")
             
             # You can make more async calls here

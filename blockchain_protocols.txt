@@ -1,0 +1,31 @@
+Blockchain Protocols
+
+you will play a pivotal part in identifying, developing and prototyping new innovations in the digital asset space.
+Strong understanding of Web3.0 and broader emerging technologies.
+
+
+P2P non-intermediary, automic, shift the root of trust from system administrator to computational power attached to the system.
+
+1. coherent and distributed system
+
+independent ndoes: are independent and fully connected with each other for the realization of system common goal.
+
+coherent: all users in teh system do not realize the fact that they stem distributeds the common goal across all nodes in the network.
+
+2. system components:
+Blocks is the building units of block chain.
+block header, nounce( 32-bit unsigned integer number than miner randomly adjust it to make sure the mined block hash is less than the nBits
+suggested target threshold)
+Merkle root.
+timestamp: the time that the block must have existed at the time.
+
+Permissioned/Public Blockchain --in terms of users access to Blockchain/ in terms of who actually control the blockchain network
+
+block chain vs transaaction chain: double spending is not possible each input transaction spends the coin of previous output
+
+annoymous users, central bank can map a bank account with a real human but defi hardly can.
+
+
+system scalability: geographical, administrative, and size(in terms of users/resources to be supported to run the system.)
+
+3. synchronization and node authentication.

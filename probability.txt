@@ -40,3 +40,14 @@ martingale P([x_0 = 0]) = 1.
 
 continuous:
 1. 
+
+
+
+Martingales:
+
+1. best stoping time. 
+2. the expectation of tomorrow price = today's price. aka, the best guess of tomorrow's price is today's price(when you want to know tomorrow price level.) 
+
+
+ARIMA:
+1. volatility cluster

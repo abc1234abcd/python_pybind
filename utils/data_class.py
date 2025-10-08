@@ -49,19 +49,21 @@ class Exchange:
         self.available_kline_intervals = config['available_kline_intervals']
 @dataclass
 class BookTicker:
-    __slots__ = ['bids', 'asks', 'last_update', 'bids_qty', 'asks_qty']
+    __slots__ = ['bids', 'asks', 'last_update', 'bids_qty', 'asks_qty', 'symbol']
     def __init__(self):
         self.bids =  0.0
         self.asks =  0.0
         self.last_update =  0.0 
         self.bids_qty = 0.0
         self.asks_qty = 0.0
-    def update(self, bids: float, asks: float, bids_qty: float, asks_qty: float):
+        self.symbol = None
+    def update(self, bids: float, asks: float, bids_qty: float, asks_qty: float, symbol: str):
         self.bids = float(bids)
         self.asks = float(asks)
         self.last_update = int(time.time()*1000)
         self.bids_qty = bids_qty
         self.asks_qty = asks_qty
+        self.symbol = symbol
     @property
     def is_thin(self) -> bool:
         return (self.asks - self.bids) > 0.001
@@ -115,5 +117,6 @@ class LimitDepthsOB:
     @property
     def book_buy_pressure(self) -> float:
         total_bids_qty = np.sum(self.bids[:,1])
+        print(self.asks[:,1])
         total_asks_qty = np.sum(self.asks[:,1])
         return (total_bids_qty - total_asks_qty)/(total_bids_qty + total_asks_qty)

@@ -12,7 +12,7 @@ MarketDataStreamer:
 I do not bind MexcApiClient with this MarketDataStreamer is to expect later on there are more than mexc one exchange available, and this MarketDataStreamer will still be ok to 
 reuse with them. 
 
-I expect to generate signals immediately upon msg.recv() but not after redirecting to a msg queue, which aims for low latency.
+I expect to generate alpha signals immediately upon msg.recv() but not after redirecting to a msg queue, which aims for low latency.
 so, there is no msg queue in MarketDataStreamer just yet.
 ''' 
 
@@ -54,11 +54,13 @@ class MarketDataStreamer(ABC):
             return
         while self._is_active:
             try:
-                await self.ws.send(json.dumps(self.exchange.ping_message))
-                await asyncio.sleep(self.exchange.ping_interval)
+                await asyncio.gather(
+                self.ws.send(json.dumps(self.exchange.ping_message)),
+                asyncio.sleep(self.exchange.ping_interval)
+                )
             except Exception as e:
-                logging.error(f"{self.exchange.name} conenction manager failed pinging (retry in 2s).")
-                await asyncio.sleep(2)
+                logging.error(f"{self.exchange.name} conenction manager failed pinging (retry immediately).")
+                await asyncio.sleep(0)
     async def safe_close(self) -> None:
         self._is_active = False
         if hasattr(self, 'ws') and self.ws:
