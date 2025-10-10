@@ -2,6 +2,7 @@ exchanges:
   mexc:
     public_socket_url: "wss://wbs-api.mexc.com/ws"
     private_socket_url: "wss://wbs-api.mexc.com/ws?listenKey=${listenKey}" 
+    future_socket_url: "wss://contract.mexc.com/ws"
     max_subscription: 30
     ping_interval: 30
     max_listenKey: 60

@@ -37,6 +37,7 @@ class Exchange:
     available_kline_intervals: list[str] = field(default = None)
     public_socket_url: str = field(default = None)
     private_socket_url_template: str = field(default = None)
+    future_socket_url: str = field(defalut = None)
     def __post_init__(self):
         self.name = self.name.lower()
         self.__load_config()
@@ -47,6 +48,7 @@ class Exchange:
         self.public_socket_url = config['public_socket_url']
         self.private_socket_url_template = config['private_socket_url']
         self.available_kline_intervals = config['available_kline_intervals']
+        self.future_socket_url = config['future_socket_url']
 @dataclass
 class BookTicker:
     __slots__ = ['bids', 'asks', 'last_update', 'bids_qty', 'asks_qty', 'symbol']

@@ -40,8 +40,6 @@ what on earth decides the price movement?
 
 5. candle shooting star: a. (high - max(open, close))/(high - low)> 0.7 (long upper wick) b. abs(open - close) /(high - low) < 0.3 (small body) c. (min(open, close) - low)/(high - low) < 0.1 (small lower wick).
 
-rsi_list =[]
-entry, then rsi_list.append(rsi) exit: if rsi delta > 0 , append new rsi to rsi list, other wise, rsi list.pop(), if len(rsi list) <= 1, exit = true, else rsi > 70, exit = true.
 
 '''
 
@@ -235,6 +233,7 @@ class TakeProfit(MarketDataStreamer):
         upper_body, _, lower_body = await self.kline_shape()
         prev_kline_is_hammer = False
         prev_kline_is_shooting_star = False
+
         if upper_body > 0.7:
             prev_kline_is_shooting_star = True
         elif lower_body > 0.7:
@@ -249,6 +248,7 @@ class TakeProfit(MarketDataStreamer):
             self.is_strong_dropping = True
         print(f"is strong up: {self.is_strong_upward}, is strong down: {self.is_strong_dropping}")
         #entry: the self.resist_level is the lowest price in the past 14 minutes, which if the mean price and use martigale "stopping time" to decide my exit strategy.
+        #the entry is wrong completely: if i entry when is strong, then strong signal only gets weaker and weaker, 
         strong_entry_condition = (self.rsi_momentum > 0 and self.ob_ticker.asks < self.resist_level - 0.0015 and curr_kline.closing_price > curr_kline.opening_price)
         weak_entry_condition = (self.rsi_momentum > 0 and self.ob_ticker.asks < self.resist_level -0.002 and curr_kline.closing_price > curr_kline.opening_price)
         if self.position is None:
