@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Any, List
+from typing import List
 from enum import Enum
-from utils.config_loader import ExchangeConfigLoader
 import time
 import numpy as np
 
@@ -28,27 +27,14 @@ class OrderType(Enum):
     TAKE_PROFIT = "TAKE_PROFIT"
     TAKE_PROFIT_LIMIT ="TAKE_PROFIT_LIMIT"
     LIMIT_MAKER ="LIMIT_MAKER"
+class Market(Enum):
+    SPOT = "spot"
+    FUTURES = "futures"
+    BROKER = "broker"
+class DataType(Enum):
+    PRIVATE = 'private'
+    PUBLIC = 'public'
 
-@dataclass
-class Exchange:
-    name: str
-    ping_message: str = field(default = None)
-    ping_interval: Any = field(default = None)
-    available_kline_intervals: list[str] = field(default = None)
-    public_socket_url: str = field(default = None)
-    private_socket_url_template: str = field(default = None)
-    future_socket_url: str = field(defalut = None)
-    def __post_init__(self):
-        self.name = self.name.lower()
-        self.__load_config()
-    def __load_config(self):
-        config = ExchangeConfigLoader.load_exchange_config(self.name)
-        self.ping_message = config['ping_message']
-        self.ping_interval = config['ping_interval']
-        self.public_socket_url = config['public_socket_url']
-        self.private_socket_url_template = config['private_socket_url']
-        self.available_kline_intervals = config['available_kline_intervals']
-        self.future_socket_url = config['future_socket_url']
 @dataclass
 class BookTicker:
     __slots__ = ['bids', 'asks', 'last_update', 'bids_qty', 'asks_qty', 'symbol']

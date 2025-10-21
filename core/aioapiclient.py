@@ -1,5 +1,4 @@
 import aiohttp
-import asyncio
 import logging
 import hmac
 import time
@@ -10,6 +9,7 @@ from utils.security import SecurityManager
 from utils.data_class import OrderSide, OrderType
 from pathlib import Path
 from dotenv import dotenv_values
+from pydantic import BaseModel
 
 class AioMexcApiClient:
     def __init__(self, api_key: SecurityManager, api_secret: SecurityManager, timeout: tuple = (1, 2), pool_config: dict = None):
@@ -35,8 +35,10 @@ class AioMexcApiClient:
     async def __aenter__(self):
         await self.create_session()
         return self
+    
     async def __aexit__(self):
         await self.close_session()
+        
     async def create_session(self):
         if self.session is None:
             self.session = aiohttp.ClientSession(

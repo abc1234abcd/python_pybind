@@ -1,13 +1,13 @@
 import asyncio
 from websockets import connect
 from abc import ABC, abstractmethod
-from string import List, Any
+from typing import List
 from utils.data_class import Exchange
 import logging
 import json
 
-class FutureMarketDataStreamer(ABC):    
-    def __init__(self, exchange: str, topics: List[Any]):
+class FutureDataStreamer(ABC):    
+    def __init__(self, exchange: str, topics: List[dict]):
         self.exchange = Exchange(exchange.lower())
         self.topics = topics
         self.ws = None
@@ -28,7 +28,7 @@ class FutureMarketDataStreamer(ABC):
                 logging.error(f"{self.exchange.name} connect failed: {e}. Reconnecting immediately...")
     async def subscribe(self):
         if not self.ws:
-            logging.error(f"{self.exchange.name} is not connected yet while trying to make subscription.") 
+            logging.error(f"{self.exchange.name} future market is not connected yet while trying to make subscription.") 
         if (self.topics and self.ws):
             try:
                 for topic in self.topics:
@@ -40,12 +40,12 @@ class FutureMarketDataStreamer(ABC):
     async def _message_handler(self):
        pass
     async def _ping_manager(self):
-        if not (self.exchange.ping_message and self.exchange.ping_interval):
+        if not (self.exchange.future_ping_message and self.exchange.ping_interval):
             return
         while self._is_active:
             try:
                 await asyncio.gather(
-                self.ws.send(json.dumps(self.exchange.ping_message)),
+                self.ws.send(json.dumps(self.exchange.future_ping_message)),
                 asyncio.sleep(self.exchange.ping_interval)
                 )
             except Exception as e:

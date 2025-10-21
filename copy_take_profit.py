@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from utils.security import SecurityManager
 from utils.data_class import OrderSide, OrderType, Kline, BookTicker, OrderFlow, LimitDepthsOB
-from core.market_data_streamer import MarketDataStreamer
+from core.spot_data_streamer import SpotDataStreamer
 #from core.mexc_api import MexcApiClient
 from core.aioapiclient import AioMexcApiClient
 #from numba import njit: consumes too much cache, and re-compile consumes way too much time 
@@ -46,7 +46,7 @@ entry, then rsi_list.append(rsi) exit: if rsi delta > 0 , append new rsi to rsi 
 
 '''
 
-class TakeProfit(MarketDataStreamer):
+class TakeProfit(SpotDataStreamer):
     def __init__(self, exchange: str, topics: List[dict], api_client: AioMexcApiClient):
         super().__init__(exchange, topics)
         self.api_client = api_client

@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from utils.security import SecurityManager
 from utils.data_class import OrderSide, OrderType, Kline, BookTicker, OrderFlow, LimitDepthsOB
-from core.market_data_streamer import MarketDataStreamer
+from core.spot_data_streamer import SpotDataStreamer
 from core.aioapiclient import AioMexcApiClient
 #from numba import njit: consumes too much cache, and re-compile consumes way too much time 
 import copy
@@ -43,7 +43,7 @@ what on earth decides the price movement?
 
 '''
 
-class TakeProfit(MarketDataStreamer):
+class TakeProfit(SpotDataStreamer):
     def __init__(self, exchange: str, topics: List[dict], api_client: AioMexcApiClient):
         super().__init__(exchange, topics)
         self.api_client = api_client
@@ -376,8 +376,8 @@ if __name__=='__main__':
     ob_depth_level = 10 
     timeout = tuple((6, 3))
     topics = [{"method": "SUBSCRIPTION", "params":[f"spot@public.aggre.bookTicker.v3.api.pb@100ms@{symbol}", f"spot@public.kline.v3.api.pb@{symbol}@Min1", f"spot@public.aggre.deals.v3.api.pb@100ms@{symbol}", f"spot@public.limit.depth.v3.api.pb@{symbol}@{ob_depth_level}"]}]
-    api_key = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_API_KEY"])
-    api_secret = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_SECRET"])
+    api_key = SecurityManager(dotenv_values(Path(__file__)/".env")[f"{exchange.upper()}_API_KEY"])
+    api_secret = SecurityManager(dotenv_values(Path(__file__)/".env")[f"{exchange.upper()}_SECRET"])
     asyncio.run(main(exchange = exchange, api_key=api_key, api_secret=api_secret, topics=topics, timeout=timeout))
 
 

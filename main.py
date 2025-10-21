@@ -7,7 +7,7 @@ from typing import List
 from core.mexc_api import MexcApiClient
 from utils.security import SecurityManager
 from log_config import configure_logging
-from core.market_data_streamer import MarketDataStreamer
+from core.spot_data_streamer import MarketDataStreamer
 from core.user_data_streamer import UserDataStreamer
 
 

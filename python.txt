@@ -1,0 +1,4 @@
+Python Notes
+
+
+1. __repr__ vs __str__ : print() calls __str__, debug calls __repr__ as in interactive shell.
