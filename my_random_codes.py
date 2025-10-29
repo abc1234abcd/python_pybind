@@ -77,7 +77,7 @@ from pydantic import Depends
 app = FastAPI(title = "", version = "1.0.0")
 users =[{}, {}]
 
-Base.metadata.create_all(engine)
+Base.metadata.create_all(engine) #asynchronous use Base.metadata.create_all without binding engine
 
 #Depends injection
 def get_db():
