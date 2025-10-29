@@ -6,10 +6,6 @@ import urllib.parse
 from typing import Dict, Any, Optional, List
 from hashlib import sha256
 from utils.security import SecurityManager
-from utils.data_class import OrderSide, OrderType
-from pathlib import Path
-from dotenv import dotenv_values
-from pydantic import BaseModel
 
 class AioMexcApiClient:
     def __init__(self, api_key: SecurityManager, api_secret: SecurityManager, timeout: tuple = (1, 2), pool_config: dict = None):
@@ -32,13 +28,6 @@ class AioMexcApiClient:
         self.session = None
         self.headers = None
         
-    async def __aenter__(self):
-        await self.create_session()
-        return self
-    
-    async def __aexit__(self):
-        await self.close_session()
-        
     async def create_session(self):
         if self.session is None:
             self.session = aiohttp.ClientSession(
@@ -46,6 +35,10 @@ class AioMexcApiClient:
                 timeout=self.timeout,
                 headers = self.headers
             )
+    async def open_session(self):
+        await self.create_session()
+        return self
+    
     async def close_session(self):
         if self.session:
             await self.session.close()
@@ -59,6 +52,7 @@ class AioMexcApiClient:
                     "Content-Type": "application/json"
                 }
         return self.headers
+    
     def _sign_message(self, params: dict) -> Dict[str, Any]:
         totalParams = {**params}
         query_string = urllib.parse.urlencode(sorted(totalParams.items()))
@@ -71,6 +65,7 @@ class AioMexcApiClient:
                 sha256
             ).hexdigest()
         return totalParams
+    
     async def _make_request(self, method: str, url_path: str, headers: dict = None, params: dict = None) -> dict:
         if self.session is None:
             await self.create_session()
@@ -90,6 +85,7 @@ class AioMexcApiClient:
         except Exception as e:
             logging.error(f"Unexpected error: {e}")
             raise
+
     async def generate_listen_key(self) -> SecurityManager:
         url_path = "/api/v3/userDataStream"
         totalParams = self._sign_message(params={'timestamp': str(int(time.time()*1000))})
@@ -100,6 +96,7 @@ class AioMexcApiClient:
         except Exception as e:
             logging.error(f"mexc generate listen key failed on exception: {e}.")
             raise
+
     async def put_listen_key(self, listenKey: SecurityManager) -> bool:
         url_path = "/api/v3/userDataStream"
         with listenKey.get_secret().get() as listen_key:
@@ -112,6 +109,7 @@ class AioMexcApiClient:
             except Exception as e:
                 logging.error(f"put listen key fail on exception: {e}.")
                 return False
+            
     async def delete_listen_key(self, listenKey: SecurityManager) -> bool:
         url_path = "/api/v3/userDataStream"
         with listenKey.get_secret().get() as listen_key:
@@ -124,12 +122,11 @@ class AioMexcApiClient:
             except Exception as e:
                 logging.error(f"delete listen key failed on exception: {e}")
                 return False
+            
     async def submit_orders(self, params: dict) -> dict:
         url_path = "/api/v3/order"
         totalParams = self._sign_message(params=params)
-        print(totalParams)
         headers = await self.get_headers()
-        print(headers)
         try:
             return await self._make_request('POST', url_path, headers = headers, params=totalParams)
         except Exception as e:
@@ -245,10 +242,27 @@ class AioMexcApiClient:
         except Exception as e:
             logging.error(f"get daily price statistcis for symbols {symbols} failed on exception: {e}.")
             raise
+   #future market websocket login msg:
+    async def future_market_login_msg(self) -> bool:
+        try:
+            with self.api_key.get_secret().get() as api_key:
+                params = {            
+                    "apiKey": api_key,
+                    "reqTime": str(int(time.time()*1000)),
+                }
+                temp_params = self._sign_message(params = params)
+                total_params ={
+                    "method": "login",
+                    "param": temp_params
+                }
+                print(total_params)
+                return total_params
+        except Exception as e:
+            logging.error("generating future market login msg failed on exception: {e}.")
 
-
-
+        
 '''
+
 if __name__=='__main__':
     async def run_client():
         api_key = SecurityManager(dotenv_values(Path(__file__).parent.parent/".env")[f"MEXC_API_KEY"])
@@ -273,7 +287,8 @@ if __name__=='__main__':
             # Use await for the async method
             return_data = await mexcapiclient_instance.get_daily_price_stats(symbols = symbols)
             print(f"aio Kline data: {return_data}")
-            
+            future_market_login = await mexcapiclient_instance.future_market_login()
+            print(future_market_login)
             # You can make more async calls here
             # balance = await mexcapiclient_instance.account_balance()
             # print(f"Balance: {balance}")

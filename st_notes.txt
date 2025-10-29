@@ -37,13 +37,19 @@ rsi < overbrough threshol, rsi_slope > 0 , rsi_slope_delta > 0 -> strong buy sig
 momentum > 0 + rsi_value < over_sold_threshold, 
 
 
+
+true range: max(curr_high - curr_low, abs(curr_high - prev_close), abs(curr_low - prev_close))
+
+average of true range: a simply moving average of true range values(typically a 14-period.)
+
+1. to avoid local high trap:
+
+solution: setup entry upfront: either a ma +- 1*std or 2*std or kline based signals: shooting star/hammer/resist level/support level
+
+2. exit policy:
+
+current: avg_true_range*pnl_threshold. pnl_threshold based on kline_slope_14min beta, if beta < 0, small threshold, > 0 big threshold.
+
+solution: alpha*current_range + (1 - alpha)*avg_true_range. alpha = current_range /sum_of_range
+
 '''
-
-if (momentum > 1 and 
-                self.rsi_value_buffer[-1] < 32 and 
-                self.price_buffer[-1] > short_period_price_mean):
-    "entry"
-
-if target_exit_price - self.filled_entry_price > self.filled_entry_price*0.001 and momentum < 0:
-
-    "exit"

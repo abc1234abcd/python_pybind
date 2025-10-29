@@ -4,21 +4,21 @@ from enum import Enum
 import time
 import numpy as np
 
-class MarketData(Enum):
+class Stream(Enum):
     TRADES= 'trades'
     ORDER_BOOK= 'order_book'
     KLINE= 'kline'
     BOOK_TICKER = 'book_ticker'
-class UserData(Enum):
     SPOT_ACCOUNT_UPDATE = 'spot_account_upate'
     SPOT_ACCOUNT_DEALS ='spot_account_deals'
     SPOT_ACCOUNT_ORDERS = 'spot_account_orders'
-class SubscriptionAction(Enum):
-    SUBSCRIBE ='subscribe'
-    UNSUBSCRIBE = 'unsubscribe'
+    FUNDING_RATE = "funding_rate"
+    TICKER ="ticker"
+
 class OrderSide(Enum):
     BUY = 'BUY'
     SELL = 'SELL'
+
 class OrderType(Enum):
     LIMIT = "LIMIT"
     MARKET = "MARKET"
@@ -27,11 +27,13 @@ class OrderType(Enum):
     TAKE_PROFIT = "TAKE_PROFIT"
     TAKE_PROFIT_LIMIT ="TAKE_PROFIT_LIMIT"
     LIMIT_MAKER ="LIMIT_MAKER"
+
 class Market(Enum):
     SPOT = "spot"
-    FUTURES = "futures"
+    FUTURE = "future"
     BROKER = "broker"
-class DataType(Enum):
+
+class Access(Enum):
     PRIVATE = 'private'
     PUBLIC = 'public'
 
@@ -44,14 +46,12 @@ class BookTicker:
         self.last_update =  0.0 
         self.bids_qty = 0.0
         self.asks_qty = 0.0
-        self.symbol = None
-    def update(self, bids: float, asks: float, bids_qty: float, asks_qty: float, symbol: str):
+    def update(self, bids: float, asks: float, bids_qty: float, asks_qty: float):
         self.bids = float(bids)
         self.asks = float(asks)
         self.last_update = int(time.time()*1000)
         self.bids_qty = bids_qty
         self.asks_qty = asks_qty
-        self.symbol = symbol
     @property
     def is_thin(self) -> bool:
         return (self.asks - self.bids) > 0.001

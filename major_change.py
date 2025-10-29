@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from utils.security import SecurityManager
 from utils.data_class import OrderSide, OrderType, Kline, BookTicker, OrderFlow, LimitDepthsOB
-from core.spot_data_streamer import SpotDataStreamer
+from core.data_streamer import SpotDataStreamer
 from core.aioapiclient import AioMexcApiClient
 #from numba import njit: consumes too much cache, and re-compile consumes way too much time 
 import copy

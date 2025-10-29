@@ -29,7 +29,7 @@ class SafeString:
 #secret encryption and use secret as SafeString. 
 class SecurityManager:
     def __init__(self, secret: str):
-        self._cipher = Fernet(dotenv_values(Path(__file__).resovle().parent.parent/".env")["FERNET_KEY"].encode())
+        self._cipher = Fernet(dotenv_values(Path(__file__).resolve().parent.parent/".env")["FERNET_KEY"].encode())
         self._encrypt_secret = self._cipher.encrypt(secret.encode('utf-8'))
     def get_secret(self) -> SafeString:
         return SafeString(self._cipher.decrypt(self._encrypt_secret).decode())

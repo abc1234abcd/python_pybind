@@ -2,3 +2,27 @@ Python Notes
 
 
 1. __repr__ vs __str__ : print() calls __str__, debug calls __repr__ as in interactive shell.
+
+2. __call__ : makes an instance of a class callable like a function, and it runs every time the instance is called. 
+   __post_init__: automatically runs after the instance's __init__ has complete, used to finalize setup, validate state, or trigger dependent setup.
+
+3. pydantic model from either pydantic_settings BaseSettings or pydantic BaseModel are both return pydantic model, use model_schema.model_validate(return_data) to validate return_data against the model schema,
+return_data = model_schem.model_load(data) to create a new model instance from python dict, return_data = model_instance.model_dump() turn a model into python dict. 
+
+4. json.dumps() turn python dict into str, json.loads() turn json str into python dict. json.dump() dump to file. 
+
+5. due to GIL(global interpreter lock), only one thread executes python bytecode at a time. good for i/o bound task(network, file reading/writing, websockets) - threads can wait on i/0 while others run.
+
+for cpu bounded task, regardless how much more threads are open, only one thread runs python bytecode at a time, therefore, the result has little to no speed up from multi-threading for
+CPU bounded task -> solution: multi-processing, then each process has its own python iterpreter and gil.
+
+for i/o bounded task, the most of time waiting for external resources(network, API, database etc) are not blocked by GIL when waiting(). therefore, threads can switch while one thread is 
+waiting for i/o.
+
+gil is a mutex(互斥锁): gil is a mutex that protects python object. why python objects need to be protected? : in concurrent programming, to prevent multiple threads or processes from 
+accessing/modifying it at the same time in unsafe ways as in race conditions
+
+6. docker: Dockerfile defines how to build a single container image(e.g base image, WORKDIR, CMD etc), the output is a runnable image containing the app and installed dependecies. 
+docker-compose.yaml describes a multi-container application(server, networks, volums etc) and runtime configurations. for each service, we can point to an image.
+
+docker volume:

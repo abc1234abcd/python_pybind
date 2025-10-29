@@ -2,67 +2,39 @@ import time
 import logging
 import asyncio
 import numpy as np
-from typing import List
+import thread
+from typing import List, Tuple, Any
 from pathlib import Path
 from dotenv import dotenv_values
 from utils.security import SecurityManager
-from utils.data_class import OrderSide, OrderType, Kline, BookTicker, OrderFlow, LimitDepthsOB
-from core.data_streamer import SpotDataStreamer
-#from core.mexc_api import MexcApiClient
+from utils.data_class import OrderSide, OrderType, Kline, BookTicker, OrderFlow, LimitDepthsOB, Market, DataType
+from core.data_streamer import DataStreamer
 from core.aioapiclient import AioMexcApiClient
+from dotenv import load_dotenv
 #from numba import njit: consumes too much cache, and re-compile consumes way too much time 
 import copy
-#C++ extention
+#C++ extentions
 from proto_wrapper_mexc import PushDataV3ApiWrapper
 from rsi_calculator import RSICalculator
 from slope_calculator import calculate_slope
 from order_flow import compute_order_flow
 
-'''
-true range: max(curr_high - curr_low, abs(curr_high - prev_close), abs(curr_low - prev_close))
 
-average of true range: a simply moving average of true range values(typically a 14-period.)
-
-1. to avoid local high trap:
-
-solution: setup entry upfront: either a ma +- 1*std or 2*std or kline based signals: shooting star/hammer/resist level/support level
-
-2. exit policy:
-
-current: avg_true_range*pnl_threshold. pnl_threshold based on kline_slope_14min beta, if beta < 0, small threshold, > 0 big threshold.
-
-solution: alpha*current_range + (1 - alpha)*avg_true_range. alpha = current_range /sum_of_range
-
-3. cannot beat beta:
-
-what on earth decides the price movement?
-
-4. use ob to get live support and resist level. 
-
-5. candle shooting star: a. (high - max(open, close))/(high - low)> 0.7 (long upper wick) b. abs(open - close) /(high - low) < 0.3 (small body) c. (min(open, close) - low)/(high - low) < 0.1 (small lower wick).
-
-rsi_list =[]
-entry, then rsi_list.append(rsi) exit: if rsi delta > 0 , append new rsi to rsi list, other wise, rsi list.pop(), if len(rsi list) <= 1, exit = true, else rsi > 70, exit = true.
-
-'''
-
-class TakeProfit(SpotDataStreamer):
-    def __init__(self, exchange: str, topics: List[dict], api_client: AioMexcApiClient):
-        super().__init__(exchange, topics)
-        self.api_client = api_client
+class SOne(DataStreamer):
+    def __init__(self, ticker: str, exchange: str,  exchange_client: AioMexcApiClient):
+        super().__init__(exchange, market, data_type, topics, exchange_client)
+        #protobuf msg parser
         self.msg_parser = PushDataV3ApiWrapper()
-        self.rsi_calculator = RSICalculator(28)
+        #return data from DataStreame
         self.kline = Kline()
         self.ob_ticker = BookTicker()
         self.order_flow = OrderFlow()
         self.limit_depths_ob = LimitDepthsOB()
-        #buffers: price buffer saves all closing price as the same time interval of kline, rsi_buffer length is determined by rsi_calculator window size.
-        self.price_buffer =[]
-        self.rsi_buffer = np.full(28, np.nan)
+
+        self.exchange_client = exchange_client
+
         #pre-allocate buy/sell order
-        self.filled_entry_price = 0.0
-        self.filled_qty = 0.0
-        self.max_position = "40" 
+        self.max_position = "200" 
         self._buy_order = {
             "quoteOrderQty":  self.max_position,  
             "side": OrderSide.BUY.value,
@@ -77,66 +49,7 @@ class TakeProfit(SpotDataStreamer):
             "timestamp": None,  
             "type": OrderType.MARKET.value
         }
-        #strategy based variables
-        self.position = None 
-        #rsi signals
-        self.rsi_value = 0.0
-        self.rsi_mean = 0.0
-        self.rsi_std = 0.0
-        self.rsi_momentum = 0.0
-        self.oversold_threshold = None
-        self.overbrought_threshold = None
-        #beta
-        self.kline_slope = None
-        #entry setups
-        self.prev_exit_price = None
-        self.prev_exit_time = None
-        #magnitute of price fluctuation with one kline
-        self.curr_true_range = 0.0
-        #20 level ob depths buy pressure
-        self.book_buy_pressure = 0.0
-        #latency control notification
-        self.last_latency = 0        
-        #hist kline asyncio task
-        # In your __init__ method or connection setup:
-        asyncio.create_task(self.hist_kline_handler())
-    
-    async def hist_kline_handler(self):
-        #kline buffer record kline at 1 minute interval
-        self.kline_buffer = np.full(14, None, dtype = object)
-        #true range buffer record true range at 1 minute interval
-        self.true_range_buffer = np.full(14, np.nan)
-        #hist kline 
-        hist_kline_data = await self.api_client.get_hist_kline(symbol = "XRPUSDT", interval = "1m")
-        hist_kline = hist_kline_data[-16:]
-        daily_kline = hist_kline_data[-1440:]
-        daily_high_array = np.array([item[2] for item in daily_kline], dtype=float)
-        daily_low_array = np.array([item[3] for item in daily_kline], dtype=float)
-        daily_closing_array = np.array([item[4] for item in daily_kline], dtype = float)
-        self.daily_std = daily_closing_array.std()
-        self.daily_resist = daily_high_array.max()
-        self.daily_support = daily_low_array.min()
-        self.daily_avg = daily_closing_array.mean()
-        #support level is the min kline.lowest in the past 14 minutes
-        self.support_level = min(item[3] for item in hist_kline[-16:-1])
-        #curr kline is -1, prev kline is 
-        self.prev_kline = Kline()
-        self.prev_kline.update(hist_kline[-2][4], hist_kline[-2][2], hist_kline[-2][3], hist_kline[-2][1], float(hist_kline[-2][0])/1000, hist_kline[-2][5])
-        for i in range(-16, -2):
-            self.kline.update(hist_kline[i+1][4], hist_kline[i+1][2], hist_kline[i+1][3], hist_kline[i+1][1], float(hist_kline[i+1][0])/1000, hist_kline[i+1][5])
-            #copy of python obj
-            self.kline_buffer = np.roll(self.kline_buffer, -1)
-            self.kline_buffer[-1] = copy.deepcopy(self.kline)
-            prev_high_range = abs(float(hist_kline[i][2]) - float(hist_kline[i+1][4]))
-            prev_low_range = abs(float(hist_kline[i][3]) - float(hist_kline[i+1][4]))
-            self.true_range = max(float(hist_kline[i+1][2]) - float(hist_kline[i+1][3]), prev_high_range, prev_low_range)
-            self.true_range_buffer = np.roll(self.true_range_buffer, -1)
-            self.true_range_buffer[-1] = copy.deepcopy(self.true_range)
-            if all(item != 0 for item in self.true_range_buffer):
-                self.avg_true_range = np.mean(self.true_range_buffer)
-        self.kline_min14_slope = calculate_slope([item.closing_price for item in self.kline_buffer])
-        self.resist_level= max([item.highest_price for item in self.kline_buffer])
-        self.support_level = min([item.lowest_price for item in self.kline_buffer])
+
     async def _message_handler(self):  
             while self._is_active and self.ws:
                 try:
@@ -153,61 +66,28 @@ class TakeProfit(SpotDataStreamer):
                                     bids_qty = float(book.bid_quantity()),
                                     asks_qty = float(book.ask_quantity())
                                 )
+                                print(f"ob_ticker: {self.ob_ticker}/ {book}")
                             #kline
                             if self.msg_parser.has_kline():
                                 kline = self.msg_parser.kline()
                                 self.kline.update(kline.closing_price(), kline.highest_price(), kline.lowest_price(), kline.opening_price(), kline.window_start(), kline.volume())
-                                #ris
-                                self.rsi_value = self.rsi_calculator.update(self.kline.closing_price)
-                                self.rsi_buffer = np.roll(self.rsi_buffer, -1)
-                                self.rsi_buffer[-1] = copy.deepcopy(self.rsi_value)
-                                self.rsi_momentum = self.rsi_buffer[-1] - self.rsi_buffer[-2]
-                                if not np.any(np.isnan(self.rsi_buffer)) and all(item != 0 for item in self.rsi_buffer):
-                                    self.rsi_mean = np.mean(self.rsi_buffer)
-                                    self.rsi_std = np.std(self.rsi_buffer)
-                                #update kline signals:
-                                curr_kline = copy.deepcopy(self.kline)
-                                if self.prev_kline.window_start == curr_kline.window_start: 
-                                    #update without rolling window
-                                    self.kline_buffer[-1] = copy.deepcopy(curr_kline)
-                                    self.price_buffer.append(curr_kline.closing_price)
-                                    prev_high_range = abs(self.kline_buffer[-2].highest_price - curr_kline.closing_price)
-                                    prev_low_range = abs(self.kline_buffer[-2].lowest_price - curr_kline.closing_price)
-                                    self.curr_true_range = max(curr_kline.highest_price - curr_kline.lowest_price, prev_high_range, prev_low_range)
-                                    self.true_range_buffer[-1] = copy.deepcopy(self.curr_true_range)
-                                    self.avg_true_range = np.mean(self.true_range_buffer)
-                                elif self.prev_kline.window_start != curr_kline.window_start:
-                                    #update with rolling window
-                                    self.kline_buffer = np.roll(self.kline_buffer, -1)
-                                    self.kline_buffer[-1] = copy.deepcopy(curr_kline)
-                                    #renew self.price_buffer
-                                    self.price_buffer = [curr_kline.closing_price]
-                                    prev_high_range = abs(self.kline_buffer[-2].highest_price - curr_kline.closing_price)
-                                    prev_low_range = abs(self.kline_buffer[-2].lowest_price - curr_kline.closing_price)
-                                    self.curr_true_range = max(curr_kline.highest_price - curr_kline.lowest_price, prev_high_range, prev_low_range)
-                                    self.true_range_buffer = np.roll(self.true_range_buffer, -1)
-                                    self.true_range_buffer[-1] = copy.deepcopy(self.curr_true_range)
-                                    self.avg_true_range = np.mean(self.true_range_buffer)
-                                self.prev_kline = copy.deepcopy(curr_kline)
-                                self.support_level = min(element.lowest_price for element in self.kline_buffer)
-                                self.kline_min14_slope = calculate_slope([item.lowest_price for item in self.kline_buffer])
-                                self.support_level = min([item.lowest_price for item in self.kline_buffer])
-                                self.resist_level = max([item.highest_price for item in self.kline_buffer])
-                                self.kline_slope = calculate_slope(self.price_buffer)
+                                print(f"kline: {self.kline} /{kline}")
+     
                             #limit depths of order book: 20 levels, generates book dynamic buy pressure based on bid and ask qantity gap in ptc.
                             if self.msg_parser.has_public_limit_depths():
                                 temp_limit_depths_ob = self.msg_parser.limit_depths()
                                 self.limit_depths_ob.update(temp_limit_depths_ob.bids(), temp_limit_depths_ob.asks())
+                                print(f"20 level book: {self.limit_depths_ob} /{temp_limit_depths_ob}")
                                 self.book_buy_pressure = self.limit_depths_ob.book_buy_pressure
+                                print(f"20 lvel book: {self.book_buy_pressure}")
                             #order flows: based on market order at each push time interval, the bid and ask quantity gap in pct.
                             if self.msg_parser.has_public_aggredeals():
                                     trades = self.msg_parser.trades()
+                                    print(f"trades : {trades}")
                                     if trades and trades.deals():
                                         order_flow= compute_order_flow(trades.deals())
                                         self.order_flow.update(order_flow.bid_volume, order_flow.ask_volume, order_flow.net_flow, order_flow.price_delta, order_flow.normalized_net_flow)
-                            if all(item != 0 for item in self.rsi_buffer) and all([item is not None for item in [self.kline_slope, self.kline_min14_slope, self.rsi_mean]]):
-                                print(self.book_buy_pressure, self.rsi_value, self.kline.closing_price, self.ob_ticker.asks, self.ob_ticker.bids, [self.resist_level, self.support_level], [self.kline_min14_slope, self.kline_slope])
-                                await self._execute_strategy()
+                                        print(f"flow: {self.order_flow}/ {trades}")
                         else:
                             logging.error(f"parse protobuf msg {self.msg_parser} failed.")
                     else:
@@ -225,7 +105,7 @@ class TakeProfit(SpotDataStreamer):
         self.overbrought_threshold = self.rsi_mean + self.rsi_std
         self.oversold_threshold = self.rsi_mean - self.rsi_std
         #take profit parmas turning: 
-        if self.kline_min14_slope >= 0:
+        if self.kline_hr3_slope >= 0:
             self.take_profit_threshold = 0.001
         else:
             self.take_profit_threshold = 0.0005
@@ -235,6 +115,7 @@ class TakeProfit(SpotDataStreamer):
         upper_body, _, lower_body = await self.kline_shape()
         prev_kline_is_hammer = False
         prev_kline_is_shooting_star = False
+
         if upper_body > 0.7:
             prev_kline_is_shooting_star = True
         elif lower_body > 0.7:
@@ -243,11 +124,13 @@ class TakeProfit(SpotDataStreamer):
         self.is_strong_upward = False
         self.is_strong_dropping = False
 
-        if (self.kline_slope > 0  and curr_kline.highest_price == curr_kline.closing_price) or self.book_buy_pressure > 0.8:
+        if (self.kline_slope > 0  and curr_kline.highest_price == curr_kline.closing_price) or (self.book_buy_pressure > 0.8 and self.order_flow.normalized_net_flow == 1):
             self.is_strong_upward = True
         elif (self.kline_slope < 0 and curr_kline.lowest_price == curr_kline.closing_price) or self.book_buy_pressure < -0.8:
             self.is_strong_dropping = True
+        print(f"is strong up: {self.is_strong_upward}, is strong down: {self.is_strong_dropping}")
         #entry: the self.resist_level is the lowest price in the past 14 minutes, which if the mean price and use martigale "stopping time" to decide my exit strategy.
+        #the entry is wrong completely: if i entry when is strong, then strong signal only gets weaker and weaker, 
         strong_entry_condition = (self.rsi_momentum > 0 and self.ob_ticker.asks < self.resist_level - 0.0015 and curr_kline.closing_price > curr_kline.opening_price)
         weak_entry_condition = (self.rsi_momentum > 0 and self.ob_ticker.asks < self.resist_level -0.002 and curr_kline.closing_price > curr_kline.opening_price)
         if self.position is None:
@@ -355,28 +238,52 @@ class TakeProfit(SpotDataStreamer):
             middle_body = (min(prev_kline.opening_price, prev_kline.closing_price) - prev_kline.lowest_price)/full_body
             lower_body = 1- upper_body - middle_body
             return upper_body, middle_body, lower_body
-async def main(exchange: str, api_key: SecurityManager, api_secret: SecurityManager, topics: List[dict], timeout: tuple):
-    mexc_api_client = AioMexcApiClient(api_key = api_key, api_secret=api_secret, timeout = timeout)
-    xrp_take_profit_instance = TakeProfit(exchange = exchange, topics = topics, api_client = mexc_api_client)
+async def main(api_key: SecurityManager, api_secret: SecurityManager, timeout: Tuple, spot_public_topics: List[Any], spot_private_topics: List[Any]):
+    exchange = "mexc"
+
+    aio_exchange_client = AioMexcApiClient(api_key=api_key, api_secret=api_secret, timeout=timeout)
+    mexc_public_streamer = await SOne.public_streamer(exchange, market, data_type, spot_public_topics)
+    mexc_private_streamer = await SOne.private_streamer(exchange, market, data_type, spot_private_topics, aio_exchange_client)
     try:
         await asyncio.gather(
-            xrp_take_profit_instance.connect(),
-            mexc_api_client.create_session(),
+            mexc_public_streamer.connect(),
+            mexc_private_streamer.connect(),
         )
     finally:
         await asyncio.gather(
-            xrp_take_profit_instance.safe_close(),
-            mexc_api_client.close_session()
+            mexc_public_streamer.safe_close(),
+            mexc_private_streamer.safe_close(),
         )
 
 if __name__=='__main__':
     exchange = 'mexc'
     symbol = "XRPUSDT"
-    ob_depth_level = 10 #available level: 5, 10, 20
+    ob_depth_level = 20
     timeout = tuple((6, 3))
-    topics = [{"method": "SUBSCRIPTION", "params":[f"spot@public.aggre.bookTicker.v3.api.pb@100ms@{symbol}", f"spot@public.kline.v3.api.pb@{symbol}@Min1", f"spot@public.aggre.deals.v3.api.pb@100ms@{symbol}", f"spot@public.limit.depth.v3.api.pb@{symbol}@{ob_depth_level}"]}]
+    market = Market.SPOT
+    data_type = DataType.PUBLIC
+    mexc_spot_public_topics = [{"method": "SUBSCRIPTION", "params":[f"spot@public.aggre.bookTicker.v3.api.pb@100ms@{symbol}", f"spot@public.kline.v3.api.pb@{symbol}@Min1", f"spot@public.aggre.deals.v3.api.pb@100ms@{symbol}", f"spot@public.limit.depth.v3.api.pb@{symbol}@{ob_depth_level}"]}]
+
     api_key = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_API_KEY"])
     api_secret = SecurityManager(dotenv_values(Path(__file__).parent/".env")[f"{exchange.upper()}_SECRET"])
-    asyncio.run(main(exchange = exchange, api_key=api_key, api_secret=api_secret, topics=topics, timeout=timeout))
+
+    asyncio.run(main(exchange = exchange, market = market, data_type=data_type, topics=topics))
 
 
+'''
+
+mexc_spot_public_streamer = DataStreamer.public_streamer("mexc", Market.SPOT, DataType.PUBLIC, spot_public_topics)
+
+aio_client = ...
+
+mexc_spot_private_streamer = DataStreamer.private_streamer("mexc", Market.SPOT, DataType.PUBLIC, spot_public_topics, aio_client)
+
+mexc_futures_public_streamer = DataStreamer.public_streamer("mexc", Market.FUTURES, DataType.PUBLIC, futures_public_topics)
+
+await asyncio.gather(
+    streamer.connect()
+)
+
+
+
+'''
