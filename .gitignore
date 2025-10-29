@@ -19,6 +19,12 @@ pythonenv/
 .env
 
 # --- Secrets----
+st_note.txt
+blockchain_protocols.txt 
+xva.txt 
+probability.txt 
+cxl.txt
+python.txt
 
 
 # --- Build and Distribution ---
