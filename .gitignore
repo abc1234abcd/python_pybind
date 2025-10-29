@@ -18,7 +18,7 @@ pyvenv.cfg
 pythonenv/
 .env
 
-# --- Secrets----
+# ---Personal files----
 st_note.txt
 blockchain_protocols.txt 
 xva.txt 

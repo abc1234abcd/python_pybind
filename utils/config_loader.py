@@ -18,7 +18,7 @@ class ExchangeConfig(BaseSettings):
     topic_template: Optional[Dict] = Field(None)
 
     model_config =SettingsConfigDict(
-        yaml_file = Path(__file__).resolve().parent/"exchanges_config.yaml",
+        yaml_file = Path(__file__).resolve().parent.parent/"exchanges_config.yaml",
         yaml_file_encoding = 'utf-8',
         extra = "allow"
     )
