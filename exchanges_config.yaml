@@ -40,4 +40,5 @@ exchanges:
               order: {"channel": "push.personal.order"}
               asset: {"channel": "push.personal.asset"}
       broker:
-
+  bybit:
+  

@@ -7,7 +7,7 @@ from utils.data_class import Market
 from typing import Dict, Any, Union, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
-#this script loads public-safe exchange config through pydantic package. e.g mexc_config = ExchangeConfig(exchange = "mexc", market = Market.SPOT)
+#this script loads public-safe exchange config through pydantic package. e.g mexc_config = ExchangeConfig(exchange = "mexc", market = Market.SPOT).model_dump()
 
 class ExchangeConfig(BaseSettings):
     exchange_name: str 

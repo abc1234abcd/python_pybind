@@ -7,8 +7,9 @@ from pathlib import Path
 from dotenv import dotenv_values
 from utils.security import SecurityManager
 from utils.data_class import OrderSide, OrderType, Kline, BookTicker, OrderFlow, LimitDepthsOB
-from core.data_streamer import SpotDataStreamer
+from core.data_streamer import DataStreamer
 from core.aioapiclient import AioMexcApiClient
+from utils.data_class import Market, Access, Stream
 #from numba import njit: consumes too much cache, and re-compile consumes way too much time 
 import copy
 #C++ extentions
@@ -32,22 +33,23 @@ current: avg_true_range*pnl_threshold. pnl_threshold based on kline_slope_14min 
 
 solution: alpha*current_range + (1 - alpha)*avg_true_range. alpha = current_range /sum_of_range
 
-3. cannot beat beta:
 
-what on earth decides the price movement?
+3. use ob to get live support and resist level. 
 
-4. use ob to get live support and resist level. 
-
-5. candle shooting star: a. (high - max(open, close))/(high - low)> 0.7 (long upper wick) b. abs(open - close) /(high - low) < 0.3 (small body) c. (min(open, close) - low)/(high - low) < 0.1 (small lower wick).
+4. candle shooting star: a. (high - max(open, close))/(high - low)> 0.7 (long upper wick) b. abs(open - close) /(high - low) < 0.3 (small body) c. (min(open, close) - low)/(high - low) < 0.1 (small lower wick).
 
 
 '''
 
-class TakeProfit(SpotDataStreamer):
-    def __init__(self, exchange: str, topics: List[dict], api_client: AioMexcApiClient):
-        super().__init__(exchange, topics)
+class TakeProfit(DataStreamer):
+    def __init__(self,ticker: str, exchange_name: str, market: Market, access: Access, stream: Stream, api_client: AioMexcApiClient):
+        super().__init__(ticker = ticker, exchange_name=exchange_name, market=market, access=access, stream=stream)
+        self.ticker = ticker.upper()
+        #api client
         self.api_client = api_client
+        #protobuf message parser
         self.msg_parser = PushDataV3ApiWrapper()
+        #real time signal
         self.rsi_calculator = RSICalculator(14)
         self.kline = Kline()
         self.ob_ticker = BookTicker()
@@ -105,8 +107,8 @@ class TakeProfit(SpotDataStreamer):
         #true range buffer record true range at 1 minute interval
         self.true_range_buffer = np.full(180, np.nan)
         #fetch hist kline 1000 mins and hist daily ticker
-        hist_kline_data = await self.api_client.get_hist_kline(symbol = "XRPUSDT", interval = "1m")
-        daily_ticker_stats = await self.api_client.get_daily_price_stats(symbols = ["XRPUSDT"])
+        hist_kline_data = await self.api_client.get_hist_kline(symbol = self.ticker, interval = "1m")
+        daily_ticker_stats = await self.api_client.get_daily_price_stats(symbols = [self.ticker])
         #daily kline signals
         daily_closing_array = np.array([item[4] for item in hist_kline_data], dtype = float)
         self.daily_resist = daily_ticker_stats['highPrice']
@@ -205,14 +207,14 @@ class TakeProfit(SpotDataStreamer):
                                         self.order_flow.update(order_flow.bid_volume, order_flow.ask_volume, order_flow.net_flow, order_flow.price_delta, order_flow.normalized_net_flow)
                             if all(item != 0 for item in self.rsi_buffer) and all([item is not None for item in [self.kline_slope, self.kline_hr3_slope, self.rsi_mean]]):
                                 print(f"book buy pressure:{self.book_buy_pressure}, rsi: [{self.rsi_value}, {self.rsi_mean}, {self.rsi_std}], slope:[{self.kline_slope, self.kline_hr3_slope}], true range:[{self.curr_true_range, self.avg_true_range}]")
-                                await self._execute_strategy()
+                                #await self._execute_strategy()
                         else:
                             logging.error(f"parse protobuf msg {self.msg_parser} failed.")
                     else:
                         logging.warning(f"Non-bytes message: {msg}")
                 except Exception as e:
                     logging.error(f"cplus msg decoder fail on exception: {e}.")
-                    raise
+                    raiseß
     async def _execute_strategy(self):
         #latency control
         start_ns = time.time_ns()

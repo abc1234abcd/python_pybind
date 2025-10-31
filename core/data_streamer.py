@@ -5,7 +5,7 @@ import hmac
 import time
 from hashlib import sha256
 from websockets import connect 
-from utils.config_loader import ExchangeConfig
+from utils.exchange_config_loader import ExchangeConfig
 from utils.data_class import Market, Access, Stream
 from typing import Optional, List
 from abc import ABC, abstractmethod
@@ -55,7 +55,7 @@ class DataStreamer(ABC):
                 try:
                     async with connect(final_socket_url, ping_interval = None) as websocket:
                         self.ws = websocket
-                        logging.info(f"{self.exchange} connects to {self.market.value} public websocket success!")
+                        logging.info(f"{self.exchange_name} connects to {self.market.value} public websocket success!")
                         await self.subscribe()
                         await asyncio.gather(
                             self._ping_manager(),
