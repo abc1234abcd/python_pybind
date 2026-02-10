@@ -1,9 +1,6 @@
 import asyncio
 import json 
 import logging 
-import hmac
-import time
-from hashlib import sha256
 from websockets import connect 
 from utils.exchange_config_loader import ExchangeConfig
 from utils.data_class import Market, Access, Stream
@@ -13,9 +10,11 @@ from string import Template
 from core.aioapiclient import AioMexcApiClient
 
 '''
-this script makes subscription to spot and future market data from mexc exchange. unsubscription is not setup as when websocket is closed properly, the subscription expires automatically anyways.
+this script is able to make subscription request to both spot and future market data from mexc exchange. unsubscription is not setup as when websocket is closed properly, the subscription expires automatically anyways.
 
 exchange.market.access.stream -> eg. mexc.spot.public.kline or mexc.future.public.ticker
+
+
 
 '''
 class DataStreamer(ABC): 
@@ -198,3 +197,26 @@ class DataStreamer(ABC):
                 await self.exchange_client.close_session()
             except Exception as e:
                 logging.error(f"{self.exchange} aio client close failed on exception: {e}.")
+
+async def spot_public_streamer(DataStreamer):
+    def __init__(self, ticker, exchange_name, market, access, stream, )
+
+async def _message_handler():
+    while True:
+        try:
+
+        except Exception as e:
+            logging.error("")
+
+async def main(ticker: str, exchange_name: str, market: Market, access: Access, stream: List[Stream], exchange_client: AioMexcApiClient):
+    spot_public_stream_instance = DataStreamer(ticker, exchange_name, market, access, stream, exchange_client)
+    spot_private_stream_instance = DataStreamer(ticker, exchange_name, market, access, stream, exchange_client)
+
+    
+
+
+if __name__=='__main__':
+    try:
+        print()
+    except:
+        logging.error()

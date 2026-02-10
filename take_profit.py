@@ -214,7 +214,7 @@ class TakeProfit(DataStreamer):
                         logging.warning(f"Non-bytes message: {msg}")
                 except Exception as e:
                     logging.error(f"cplus msg decoder fail on exception: {e}.")
-                    raiseß
+                    raise
     async def _execute_strategy(self):
         #latency control
         start_ns = time.time_ns()
