@@ -312,7 +312,7 @@ class TakeProfit(DataStreamer):
                         self.rsi_momentum < 0 )
                 else:
                     take_profit_condition = (
-                        curr_pnl >  0.001 and
+                        curr_pnl >  0.0005 and
                         self.rsi_momentum < 0
                     )
                 if take_profit_condition:
